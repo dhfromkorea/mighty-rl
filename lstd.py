@@ -99,7 +99,7 @@ class LSTDMu(LSTDQ):
         eps : small positive value to make A invertible
         W : W to evaluate
         """
-        super().__init__(p, phi, gamma, eps)
+        super().__init__(p=p, phi=phi, gamma=gamma, eps=eps)
         self._psi = psi
         self._q = q
         self._xi_hat = None
