@@ -16,7 +16,6 @@ class LSTDQ(object):
         phi : basis function for reward
         gamma : (0, 1)
         eps : small positive value to make A invertible
-        W : policy to evaluate
 
 
         """
