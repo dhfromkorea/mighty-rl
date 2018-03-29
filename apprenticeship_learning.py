@@ -130,7 +130,7 @@ class BatchApprenticeshipLearning(object):
 
 
             # choose the best policy for each trial
-            pi_best = self.choose_pi_best(pi_list)
+            pi_best = self.choose_pi_best(mu_list, pi_list)
             pi_best_collection.append(pi_best)
 
         # dump save the important meta data to numpy
@@ -138,7 +138,7 @@ class BatchApprenticeshipLearning(object):
         return results
 
 
-    def choose_pi_best(self, pi_list):
+    def choose_pi_best(self, mu_list, pi_list):
         """TODO: Docstring for choose_pi_best.
 
         Parameters
@@ -149,8 +149,12 @@ class BatchApprenticeshipLearning(object):
         -------
         pi_best
 
+        TODO
+        - try solve for best convex combination to minimize mu distance
+
         """
-        pass
+        pi_best = pi_list[np.argmin(mu_exp - np.array(mu_list))]
+        return pi_best
 
 
     def estimate_mu(self, pi_eval):
