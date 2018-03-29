@@ -6,10 +6,10 @@ def get_phi(scaler, scaled):
     # Used to converte a state to a featurizes represenation.
     # We use RBF kernels with different variances to cover different parts of the space
     phi = sklearn.pipeline.FeatureUnion([
-            ("rbf1", RBFSampler(gamma=5.0, n_components=100)),
-            ("rbf2", RBFSampler(gamma=2.0, n_components=100)),
-            ("rbf3", RBFSampler(gamma=1.0, n_components=100)),
-            ("rbf4", RBFSampler(gamma=0.5, n_components=100))
+            ("rbf1", RBFSampler(gamma=5.0, n_components=50)),
+            ("rbf2", RBFSampler(gamma=2.0, n_components=50)),
+            ("rbf3", RBFSampler(gamma=1.0, n_components=50)),
+            ("rbf4", RBFSampler(gamma=0.5, n_components=50))
             ])
     phi.fit(scaled)
 
@@ -26,10 +26,10 @@ def get_psi(scaler, scaled):
     # Used to converte a state to a featurizes represenation.
     # We use RBF kernels with different variances to cover different parts of the space
     psi = sklearn.pipeline.FeatureUnion([
-            ("rbf1", RBFSampler(gamma=5.0, n_components=100)),
-            ("rbf2", RBFSampler(gamma=2.0, n_components=100)),
-            ("rbf3", RBFSampler(gamma=1.0, n_components=100)),
-            ("rbf4", RBFSampler(gamma=0.5, n_components=100))
+            ("rbf1", RBFSampler(gamma=5.0, n_components=50)),
+            ("rbf2", RBFSampler(gamma=2.0, n_components=50)),
+            ("rbf3", RBFSampler(gamma=1.0, n_components=50)),
+            ("rbf4", RBFSampler(gamma=0.5, n_components=50))
             ])
     psi.fit(scaled)
 

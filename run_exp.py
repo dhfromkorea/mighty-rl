@@ -110,7 +110,7 @@ def get_basis_function(env_id):
     scaler.fit(xs)
 
     phi_rbf = get_phi(scaler, scaler.transform(xs))
-    return phi_rbf, scaler
+    return phi_rbf
 
 
 
@@ -121,12 +121,17 @@ def main():
     logging.info("env_id: {}".format(env_id))
     action_list = range(env.action_space.n)
 
+    # linear basis func
     p_linear = 3
     q_linear = 3
-    phi_rbf, scaler = get_basis_function(env_id)
-    psi_rbf = phi_rbf
     phi_linear = simple_phi
     psi_linear = phi_linear
+
+    # radial basis (gaussian) fn
+    p_rbf = 200
+    q_rbf = 200
+    phi_rbf = get_basis_function(env_id)
+    psi_rbf = phi_rbf
 
 
     # this is specific to mountaincar-v0
@@ -134,40 +139,45 @@ def main():
 
     # 2. define hyperparams
     gamma= 0.75
-    n_trial = 5
-    n_iteration = 20
+    n_trial = 2
+    n_iteration = 10
     # @note: hard-coded
     # this's gotta be sufficiently large to avoid mc variance issue
-    sample_size_mc = 10**5
-    p = p_linear
-    q = q_linear
-    phi = phi_linear
-    psi = psi_linear
+    sample_size_mc = 10**3
+    #p = p_linear
+    #q = q_linear
+    #phi = phi_linear
+    #psi = psi_linear
+    p = p_rbf
+    q = q_rbf
+    phi = phi_rbf
+    psi = psi_rbf
     precision = 1e-2
     use_slack = False
     # @note: reward may have to be scaled to work with slack penalty
     slack_penalty = 1e-3
     eps = 0.01
     # this should be large to account for varying init sate
-    mu_sample_size = 10**5
+    mu_sample_size = 10**3
 
     logging.info("collect a batch of data (D) from pi_expert (and some noise)")
     pi_exp = NearExpertPolicy()
     pi_random = get_random_policy()
     pi_behavior_list = [pi_exp, pi_random]
-    mix_ratio = [0.7, 0.3]
+    mix_ratio = [0.8, 0.2]
 
     D = []
-    D_sample_size = 500
+    D_sample_size = 50
     for traj in get_training_data(env,
-                                  pi_behavior_list=pi_behavior_list,
+                                  pi_list=pi_behavior_list,
                                   sample_size=D_sample_size,
                                   mix_ratio=mix_ratio):
         D += traj
 
 
     logging.info("apprenticeship learning starts")
-    mu_mc_list = estimate_mu_mc(env, pi_exp, phi_linear, gamma, sample_size_mc)
+    #mu_mc_list = estimate_mu_mc(env, pi_exp, phi_linear, gamma, sample_size_mc)
+    mu_mc_list = estimate_mu_mc(env, pi_exp, phi_rbf, gamma, sample_size_mc)
     mu_exp = np.mean(mu_mc_list, axis=0)
 
     pi_init = pi_random
@@ -192,9 +202,8 @@ def main():
     results = bal.run(n_trial=n_trial, n_iteration=n_iteration)
 
     # 5. post-process results (plotting)
-    with open("data/res{}".format(time()), "rb") as f:
+    with open("data/res_{}".format(time()), "wb") as f:
         pickle.dump(results, f, protocol=pickle.HIGHEST_PROTOCOL)
-
 
 
 
