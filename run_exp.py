@@ -142,7 +142,7 @@ def main():
     n_iteration = 10
     # @note: hard-coded
     # this's gotta be sufficiently large to avoid mc variance issue
-    sample_size_mc = 10**3
+    sample_size_mc = 10**2
     #p = p_linear
     #q = q_linear
     #phi = phi_linear
@@ -157,7 +157,7 @@ def main():
     slack_penalty = 1e-3
     eps = 0.01
     # this should be large to account for varying init sate
-    mu_sample_size = 10**3
+    mu_sample_size = 10**2
 
     logging.info("collect a batch of data (D) from pi_expert (and some noise)")
     pi_exp = NearExpertPolicy()
