@@ -1,18 +1,55 @@
+import os
+import json
+import logging
+import logging.config
 import sklearn.preprocessing
 from sklearn import manifold, datasets
 from sklearn.utils import check_random_state
 import gym
+import itertools
+import pickle
+from time import time
 
-from irl.apprenticeship_learning import apprenticeship_learning
-from irl.maximum_margin_planning import maximum_margin_planning
-from utils import *
+
 from lstd import LSTDQ, LSTDMu, LSPI
 from simulator import Simulator
 from policy import *
+from utils import *
+from apprenticeship_learning import BatchApprenticeshipLearning as BAL
 
-def get_behavior_policies(is_expert=False):
-    if not is_expert:
-        pi_list = []
+
+class NearExpertPolicy():
+    """
+    hard-coded near-optimal expert policy
+    for mountaincar-v0
+    """
+    def choose_action(self, s):
+        pos, v = s
+        return 0 if v <=0 else 2
+
+
+def setup_logging(
+    default_path='logging.json',
+    default_level=logging.INFO,
+    env_key='LOG_CFG'
+):
+    """Setup logging configuration
+
+    """
+    path = default_path
+    value = os.getenv(env_key, None)
+    if value:
+        path = value
+    if os.path.exists(path):
+        with open(path, 'rt') as f:
+            config = json.load(f)
+        logging.config.dictConfig(config)
+    else:
+        logging.basicConfig(level=default_level)
+
+def get_behavior_policies(only_expert=False):
+    pi_list = []
+    if not only_expert:
         pi1 = RandomPolicy2(choices=[0]) # left
         pi_list.append(pi1)
         pi2 = RandomPolicy2(choices=[2]) # right
@@ -20,31 +57,46 @@ def get_behavior_policies(is_expert=False):
         pi3 = RandomPolicy2(choices=[0, 2]) # left, right
         pi_list.append(pi3)
 
-    class ManualPolicy():
-        def choose_action(self, s):
-            pos, v = s
-            return 0 if v <=0 else 2
-    pi4 = ManualPolicy()
-    pi_list.append(pi4)
+    pi_exp = NearExpertPolicy()
+    pi_list.append(pi_exp)
     return pi_list
 
 
-def get_evaluation_policy():
-    pi5 = RandomPolicy2(choices=[0, 1, 2]) # left, stay, right
-    return pi5
+def get_random_policy():
+    return RandomPolicy2(choices=[0, 1, 2]) # left, stay, right
 
 
-def get_training_data(pi_list):
+def get_training_data(env, pi_list, sample_size, mix_ratio):
     state_dim = env.observation_space.shape[0]
     # discrete action
     action_dim = 1
     n_action = env.action_space.n
     sim = Simulator(env, state_dim=state_dim, action_dim=action_dim)
     traj_list = []
-    for pi in pi_list:
-        trajs = sim.simulate(pi1, n_trial=1, n_episode=50)
+    for pi, r in zip(pi_list, mix_ratio):
+        trajs = sim.simulate(pi, n_trial=1, n_episode=int(r * sample_size))
         traj_list.append(trajs)
     return traj_list
+
+def estimate_mu_mc(env, pi, phi, gamma, n_episode):
+    mus = []
+    ss_init = []
+    for epi_i in range(n_episode):
+
+        # this is not fixed
+        s = env.reset()
+        ss_init.append(s)
+        mu = 0.0
+        for t in itertools.count():
+            a = pi.choose_action(s)
+            s_next, r, done, _ = env.step(a)
+            # todo figure out whether it's phi(s,a) or phi(s)
+            mu += gamma ** t * phi(s, a)
+            s = s_next
+            if done:
+                break
+        mus.append(mu)
+    return np.array(mus)
 
 def get_basis_function(env_id):
     env = gym.envs.make(env_id)
@@ -57,47 +109,95 @@ def get_basis_function(env_id):
     scaler = sklearn.preprocessing.StandardScaler()
     scaler.fit(xs)
 
-    phi_rbf = get_phi(scaler)
+    phi_rbf = get_phi(scaler, scaler.transform(xs))
     return phi_rbf, scaler
 
 
 
 def main():
-    # hypyerparams
-    gamma= 0.75
-    s0 = [-0.5, -0.05]
+    logging.info("define environment and basis function")
     env_id = "MountainCar-v0"
     env = gym.envs.make(env_id)
+    logging.info("env_id: {}".format(env_id))
+    action_list = range(env.action_space.n)
 
-    pi_behavior_list = get_behavior_policies()
-
-    trajs = []
-    for traj in get_training_data(pi_behavior_list):
-        trajs += traj
-
+    p_linear = 3
+    q_linear = 3
     phi_rbf, scaler = get_basis_function(env_id)
     psi_rbf = phi_rbf
     phi_linear = simple_phi
     psi_linear = phi_linear
 
-    pi_eval = get_evaluation_policy()
 
-    # get lstdmu_linear
-    eps = 0.001
-    p_linear = 3
-    q_linear = 3
-    lm_linear = LSTDMu(p=p_linear, q=q_linear, phi=phi_linear, \
-                       psi=psi_linear, gamma=gamma, eps=eps)
-    lm_linear.fit(D=trajs, pi=pi_eval)
+    # this is specific to mountaincar-v0
+    init_s_sampler = lambda : [np.random.uniform(-0.4, -0.6), 0.0]
 
-    # get lstdmu_rbf
-    p_rbf = 400
-    q_rbf = 400
-    lm_rbf = LSTDMu(p=p_rbf, q=q_rbf, phi=phi_rbf, \
-                    psi=psi_rbf, gamma=gamma, eps=eps)
-    lm_linear.fit(D=trajs, pi=pi_eval)
+    # 2. define hyperparams
+    gamma= 0.75
+    n_trial = 5
+    n_iteration = 20
+    # @note: hard-coded
+    # this's gotta be sufficiently large to avoid mc variance issue
+    sample_size_mc = 10**5
+    p = p_linear
+    q = q_linear
+    phi = phi_linear
+    psi = psi_linear
+    precision = 1e-2
+    use_slack = False
+    # @note: reward may have to be scaled to work with slack penalty
+    slack_penalty = 1e-3
+    eps = 0.01
+    # this should be large to account for varying init sate
+    mu_sample_size = 10**5
+
+    logging.info("collect a batch of data (D) from pi_expert (and some noise)")
+    pi_exp = NearExpertPolicy()
+    pi_random = get_random_policy()
+    pi_behavior_list = [pi_exp, pi_random]
+    mix_ratio = [0.7, 0.3]
+
+    D = []
+    D_sample_size = 500
+    for traj in get_training_data(env,
+                                  pi_behavior_list=pi_behavior_list,
+                                  sample_size=D_sample_size,
+                                  mix_ratio=mix_ratio):
+        D += traj
+
+
+    logging.info("apprenticeship learning starts")
+    mu_mc_list = estimate_mu_mc(env, pi_exp, phi_linear, gamma, sample_size_mc)
+    mu_exp = np.mean(mu_mc_list, axis=0)
+
+    pi_init = pi_random
+
+    bal = BAL(env=env,
+              pi_init=pi_init,
+              D=D,
+              action_list=action_list,
+              p=p,
+              q=q,
+              phi=phi,
+              psi=psi,
+              gamma=gamma,
+              eps=eps,
+              mu_exp=mu_exp,
+              init_s_sampler=init_s_sampler,
+              mu_sample_size=mu_sample_size,
+              precision=precision,
+              use_slack=use_slack,
+              slack_penalty=slack_penalty)
+
+    results = bal.run(n_trial=n_trial, n_iteration=n_iteration)
+
+    # 5. post-process results (plotting)
+    with open("data/res{}".format(time()), "rb") as f:
+        pickle.dump(results, f, protocol=pickle.HIGHEST_PROTOCOL)
+
 
 
 
 if __name__ == "__main__":
+    setup_logging(default_level=logging.INFO)
     main()

@@ -1,11 +1,10 @@
 import numpy as np
 from tqdm import tqdm
 import cvxpy as cvx
-
 import logging
-logging.basicConfig(filename="debug.log", level=logging.DEBUG)
-logger = logging.getLogger(__name__)
 
+from lstd import LSTDQ, LSTDMu, LSPI
+from policy import LinearQ2
 
 class BatchApprenticeshipLearning(object):
     """Batch ApprenticeshipLearning continuous state"""
@@ -13,6 +12,7 @@ class BatchApprenticeshipLearning(object):
     def __init__(self, env,
                        pi_init,
                        D,
+                       action_list,
                        p,
                        q,
                        phi,
@@ -51,6 +51,7 @@ class BatchApprenticeshipLearning(object):
         self._pi_init = pi_init
 
         self._D = D
+        self._action_list = action_list
         self._p = p
         self._q = q
         self._phi = phi
@@ -100,39 +101,40 @@ class BatchApprenticeshipLearning(object):
             weight_list = []
             mu_list = []
 
-            # assuming pi_init is deterministic
-            # otherwise we need to integrate out
-            mu_irl = self.estimate_mu(self.pi_init)
+            # pick a random policy as init policy
+            mu_irl = self.estimate_mu(self._pi_init)
+            mu_list.append(mu_irl)
+            pi_list.append(self._pi_init)
 
             # todo replace with cvxpy
 
-            for epi_i in range(n_episode):
-                W, (margin_v, margin_mu, converged) = self.optimize(mu_irl)
+            for epi_i in range(n_iteration):
+                W, (margin_v, margin_mu, converged) = self._optimize(mu_list)
 
                 # record margin_v, margin_mu
                 weight_list.append(W)
                 margin_v_list.append(margin_v)
                 margin_mu_list.append(margin_mu)
-                logger.debug("W: {}".format(W))
-                logger.debug("margin_v: {}".format(margin_v))
-                logger.debug("margin_mu: {}".format(margin_mu))
+                logging.info("W: {}".format(W))
+                logging.info("margin_v: {}".format(margin_v))
+                logging.info("margin_mu: {}".format(margin_mu))
 
                 if converged:
-                    logger.info("margin_mu converged after {} iterations".format(epi_i + 1))
+                    logging.info("margin_mu converged after {} iterations".format(epi_i + 1))
                     break
 
-                reward_fn = get_reward_fn(W=W)
+                reward_fn = self._get_reward_fn(W=W)
 
                 # @todo: allow non-batch solver also
                 # solve the mdpr
                 pi_irl = self.solve_mdpr(reward_fn)
                 pi_list.append(pi_irl)
-                logger.debug("pi_irl: {}".format(pi_irl._W))
+                logging.debug("pi_irl: {}".format(pi_irl._W))
 
                 # record new mu_irl
                 mu_irl = self.estimate_mu(pi_irl)
                 mu_list.append(mu_irl)
-                logger.debug("mu_irl: {}".format(mu_irl))
+                logging.debug("mu_irl: {}".format(mu_irl))
 
             # save trial-level data
             margin_v_collection.append(margin_v_list)
@@ -143,9 +145,9 @@ class BatchApprenticeshipLearning(object):
 
 
             # choose the best policy for each trial
-            pi_best = self.choose_pi_best(mu_list, pi_list)
+            pi_best = self._choose_pi_best(mu_list, pi_list)
             pi_best_collection.append(pi_best)
-            logger.debug("pi_best: {}".format(pi_best._W))
+            logging.info("pi_best: {}".format(pi_best._W))
 
 
         # dump save the important meta data to numpy
@@ -176,27 +178,32 @@ class BatchApprenticeshipLearning(object):
         TODO
 
         """
+        logging.info("solving MDP\R with LSPI")
         # modify reward
         # pi = phi(s,a)^T W_0
         # phi p x 1 theta p x 1
-        np.seed(0)
+        np.random.seed(0)
         W_0 = np.random.rand(self._p)
 
         lspi = LSPI(D=self._D,
+                    action_list=self._action_list,
                     p=self._p,
                     phi=self._phi,
                     gamma=self._gamma,
+                    precision=self._precision,
                     eps=self._eps,
                     W_0=W_0,
                     reward_fn=reward_fn)
 
         W = lspi.solve()
-        pi = LinearQ2(phi=self._phi, W=W)
+        pi = LinearQ2(action_list=self._action_list,
+                      phi=self._phi,
+                      W=W)
         return pi
 
 
 
-    def choose_pi_best(self, mu_list, pi_list):
+    def _choose_pi_best(self, mu_list, pi_list):
         """TODO: Docstring for choose_pi_best.
 
         Parameters
@@ -211,7 +218,7 @@ class BatchApprenticeshipLearning(object):
         - try solve for best convex combination to minimize mu distance
 
         """
-        pi_best = pi_list[np.argmin(mu_exp - np.array(mu_list))]
+        pi_best = pi_list[np.argmin(np.abs(self._mu_exp - np.array(mu_list)))]
         return pi_best
 
 
@@ -228,12 +235,12 @@ class BatchApprenticeshipLearning(object):
         TODO
 
         """
-        mu_estimator = LSTDMu(p=self.p,
-                              q=self.q,
-                              phi=self.phi,
-                              psi=self.psi,
-                              gamma=self.gamma,
-                              eps=self.eps)
+        mu_estimator = LSTDMu(p=self._p,
+                              q=self._q,
+                              phi=self._phi,
+                              psi=self._psi,
+                              gamma=self._gamma,
+                              eps=self._eps)
 
         mu_estimator.fit(D=self._D, pi=pi_eval)
 
@@ -241,14 +248,14 @@ class BatchApprenticeshipLearning(object):
         mu_list = []
 
         for s in init_state_list:
-            mu = mu_estimator.predict(s, pi_eval(s))
+            mu = mu_estimator.predict(s, pi_eval.choose_action(s))
             mu_list.append(mu)
 
         mu_hat = np.array(mu_list).mean(axis=0)
         return mu_hat
 
 
-    def get_reward_fn(self, W):
+    def _get_reward_fn(self, W):
         """linearly parametrize reward function.
 
         Parameters
@@ -262,10 +269,10 @@ class BatchApprenticeshipLearning(object):
 
         """
         #return lambda s : W.dot(self.phi(s))
-        return lambda s, a : W.dot(self.phi(s, a))
+        return lambda s, a : W.T.dot(self._phi(s, a))
 
 
-    def optimize(self, mu_list):
+    def _optimize(self, mu_list):
         """linearly parametrize reward function.
 
         implements eq 11 from Abbeel
@@ -281,6 +288,7 @@ class BatchApprenticeshipLearning(object):
         - think whether to do s, a or just s
 
         """
+        logging.info("solving for W given mu_list")
         # define variables
         W = cvx.Variable(self._p)
         t = cvx.Variable(1)
@@ -307,9 +315,9 @@ class BatchApprenticeshipLearning(object):
         for mu in mu_list:
             if self._use_slack:
                 # xi helps expert to perform better
-                constraints += [W.T * mu_exp + xi >= W.T * mu]
+                constraints += [W.T * mu_exp + xi >= W.T * mu + t]
             else:
-                constraints += [W.T * mu_exp >= W.T * mu]
+                constraints += [W.T * mu_exp >= W.T * mu + t]
         constraints += [cvx.norm(W, 2) <= 1]
 
         prob = cvx.Problem(obj, constraints)
@@ -319,13 +327,13 @@ class BatchApprenticeshipLearning(object):
         # W = W.value / np.linalg(W.value, 2)
 
         margin_v = t.value
-        converged = margin_v < self._precision
+        converged = margin_v <= self._precision
 
         # convergence in mu implies convergence in value (induced convergence)
         # but we don't use this relation here
-        margin_mu = np.min(mu_exp - np.array(mu_list))
+        margin_mu = np.min(np.abs(np.array(mu_exp.value) - np.array(mu_list)))
 
-        return W.value, (margin_v, margin_mu, converged)
+        return np.array(W.value), (margin_v, margin_mu, converged)
 
 
 

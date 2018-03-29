@@ -2,7 +2,7 @@ import numpy as np
 import sklearn.pipeline
 from sklearn.kernel_approximation import RBFSampler
 
-def get_phi(scaler):
+def get_phi(scaler, scaled):
     # Used to converte a state to a featurizes represenation.
     # We use RBF kernels with different variances to cover different parts of the space
     phi = sklearn.pipeline.FeatureUnion([
@@ -11,7 +11,7 @@ def get_phi(scaler):
             ("rbf3", RBFSampler(gamma=1.0, n_components=100)),
             ("rbf4", RBFSampler(gamma=0.5, n_components=100))
             ])
-    phi.fit(scaler.transform(xs))
+    phi.fit(scaled)
 
     def f(s, a):
         sa = np.hstack((s, a))
@@ -22,7 +22,7 @@ def get_phi(scaler):
 
     return f
 
-def get_psi(scaler):
+def get_psi(scaler, scaled):
     # Used to converte a state to a featurizes represenation.
     # We use RBF kernels with different variances to cover different parts of the space
     psi = sklearn.pipeline.FeatureUnion([
@@ -31,7 +31,7 @@ def get_psi(scaler):
             ("rbf3", RBFSampler(gamma=1.0, n_components=100)),
             ("rbf4", RBFSampler(gamma=0.5, n_components=100))
             ])
-    psi.fit(scaler.transform(xs))
+    psi.fit(scaled)
 
     def f(s, a):
         sa = np.hstack((s, a))

@@ -1,7 +1,13 @@
-import numpy as np
-from numpy.linalg import inv
+# inspired by: https://github.com/stober/lspi/blob/master/src/lspi.py
+# heavily modified
 
-# inspired: https://github.com/stober/lspi/blob/master/src/lspi.py
+import numpy as np
+from numpy.linalg import inv, norm
+import logging
+
+
+from policy import LinearQ2
+
 
 class LSTDQ(object):
     """Docstring for LSTD. """
@@ -23,8 +29,9 @@ class LSTDQ(object):
         self._phi = phi
         self._gamma = gamma
         self._eps = eps
-        self._W_hat = None
         self._reward_fn = reward_fn
+        self._D = None
+        self._W_hat = None
 
 
     def fit(self, D, pi):
@@ -179,25 +186,29 @@ class LSTDMu(LSTDQ):
 class LSPI(object):
     """Docstring for LSPI. """
 
-    def __init__(self, D, p, phi, gamma, eps, W_0, reward_fn):
+    def __init__(self, D, action_list, p, phi, gamma, precision, eps, W_0, reward_fn):
         """TODO: to be defined1.
 
         Parameters
         ----------
         D : TODO
+        action)list : list of valid action indices
         collet_D : fn that collects extra samples
         p : dimension of phi
         phi : TODO
         gamma : TODO
-        eps : TODO
+        precision : convergence threshold
+        eps : make A invertible
         W_0 : initial weight
         reward_fn : (optional) non-default reward fn to simulate MDP\R
         """
         self._D = D
+        self._action_list = action_list
         #self._collect_D = collect_D
         self._p = p
         self._phi = phi
         self._gamma = gamma
+        self._precision = precision
         self._eps = eps
         self._W_0 = W_0
         self._W = None
@@ -208,17 +219,24 @@ class LSPI(object):
         W = self._W_0
         D = self._D
 
-        while norm(W - W_old, 2) > self._eps:
+        while True:
             W_old = W
             # update D
-            W = LSTDQ(D=D,
-                     p=self._p,
-                     phi=self._phi,
-                     gamma=self._gamma,
-                     eps=self._eps,
-                     W=W,
-                     reward_fn=reward_fn)
+            lstd_q = LSTDQ(p=self._p,
+                           phi=self._phi,
+                           gamma=self._gamma,
+                           eps=self._eps,
+                           reward_fn=self._reward_fn)
+            pi = LinearQ2(action_list=self._action_list,
+                          W=W_old,
+                          phi=self._phi)
+            W = lstd_q.fit(D=self._D, pi=pi)
             #D = self._collect_D(D, W)
+            logging.info("lspi W {}".format(W))
+            logging.info("lspi W old {}".format(W_old))
+            logging.info("lspi norm {}".format(norm(W - W_old, 2)))
+            if norm(W - W_old, 2) < self._precision:
+                break
         # save
         self._W = W
         return W
