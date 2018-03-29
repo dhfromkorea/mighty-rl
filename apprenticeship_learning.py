@@ -184,6 +184,8 @@ class BatchApprenticeshipLearning(object):
         # phi p x 1 theta p x 1
         np.random.seed(0)
         W_0 = np.random.rand(self._p)
+        import time
+        start = time.time()
 
         lspi = LSPI(D=self._D,
                     action_list=self._action_list,
@@ -195,6 +197,7 @@ class BatchApprenticeshipLearning(object):
                     W_0=W_0,
                     reward_fn=reward_fn)
 
+        print("lspi took", start - time.time())
         W = lspi.solve()
         pi = LinearQ2(action_list=self._action_list,
                       phi=self._phi,
