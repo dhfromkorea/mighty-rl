@@ -22,7 +22,10 @@ class BatchApprenticeshipLearning(object):
                        mu_exp,
                        init_s_sampler,
                        mu_sample_size,
-                       precision):
+                       precision,
+                       use_slack=False,
+                       slack_penalty=0.01
+                       ):
         """TODO: to be defined1.
 
         Parameters
@@ -41,6 +44,8 @@ class BatchApprenticeshipLearning(object):
         init_s_sampler: initial state sampler
         mu_sample_size : sample size to account for varying init states
         precision : convergence threshold
+        use_slack : whether to use slack for convex optimization
+        slack_penalty : scaling term
         """
         self._env = env
         self._pi_init = pi_init
@@ -57,6 +62,8 @@ class BatchApprenticeshipLearning(object):
         self._mu_sample_size = mu_sample_size
 
         self._precision = precision
+        self._use_slack = use_slack
+        self._slack_penalty = slack_penalty
 
 
     def run(self, n_trial, n_iteration):
