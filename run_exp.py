@@ -113,7 +113,6 @@ def get_basis_function(env_id):
     return phi_rbf
 
 
-
 def main():
     logging.info("define environment and basis function")
     env_id = "MountainCar-v0"
@@ -163,8 +162,9 @@ def main():
     logging.info("collect a batch of data (D) from pi_expert (and some noise)")
     pi_exp = NearExpertPolicy()
     pi_random = get_random_policy()
-    pi_behavior_list = [pi_exp, pi_random]
-    mix_ratio = [0.8, 0.2]
+    pi_behavior_list = [pi_exp]
+    #mix_ratio = [0.8, 0.2]
+    mix_ratio = [1.0]
 
     D = []
     D_sample_size = 50

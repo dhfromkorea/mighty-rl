@@ -58,10 +58,6 @@ class Simulator(object):
                     a = pi.choose_action(s)
                     s_next, r, done, _ = env.step(a)
                     logging.debug("s {} a {} s_next {} r {} done {}".format(s, a, r, s_next, done))
-                    if r > -1.0 and t < 200:
-                        # @todo: modify terminal reward
-                        r = 100.0
-
                     transition = T(s=s, a=a, r=r, s_next=s_next, done=done)
                     traj.append(transition)
 

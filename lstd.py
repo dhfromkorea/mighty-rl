@@ -70,7 +70,7 @@ class LSTDQ(object):
                 # just use reward?
 
                 if self._reward_fn is not None:
-                    logging.debug("modified reward: {}".format(r))
+                    logging.debug("original reward: {}".format(r))
                     r = self._reward_fn(s, a)
                     logging.debug("modified reward: {}".format(r))
                 b_hat += phi.dot(r)
