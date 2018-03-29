@@ -241,7 +241,7 @@ class LinearQ2(object):
         if a is None:
             q_list = []
             for a in self._action_list:
-                q = self._W.T.dot(self._phi(s, a))
+                q = self._W.T.dot(self._phi(s, a).T)
                 q_list.append(q)
             return np.array(q_list)
         else:

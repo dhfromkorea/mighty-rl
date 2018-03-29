@@ -75,7 +75,7 @@ def get_training_data(env, pi_list, sample_size, mix_ratio):
     traj_list = []
     for pi, r in zip(pi_list, mix_ratio):
         trajs = sim.simulate(pi, n_trial=1, n_episode=int(r * sample_size))
-        traj_list.append(trajs)
+        traj_list += trajs
     return traj_list
 
 def estimate_mu_mc(env, pi, phi, gamma, n_episode):
@@ -137,21 +137,21 @@ def main():
     init_s_sampler = lambda : [np.random.uniform(-0.4, -0.6), 0.0]
 
     # 2. define hyperparams
-    gamma= 0.75
+    gamma= 0.95
     n_trial = 2
     n_iteration = 10
     # @note: hard-coded
     # this's gotta be sufficiently large to avoid mc variance issue
     sample_size_mc = 10**2
-    #p = p_linear
-    #q = q_linear
-    #phi = phi_linear
-    #psi = psi_linear
-    p = p_rbf
-    q = q_rbf
-    phi = phi_rbf
-    psi = psi_rbf
-    precision = 1e-2
+    p = p_linear
+    q = q_linear
+    phi = phi_linear
+    psi = psi_linear
+    #p = p_rbf
+    #q = q_rbf
+    #phi = phi_rbf
+    #psi = psi_rbf
+    precision = 1e-4
     use_slack = False
     # @note: reward may have to be scaled to work with slack penalty
     slack_penalty = 1e-3
@@ -166,18 +166,18 @@ def main():
     #mix_ratio = [0.8, 0.2]
     mix_ratio = [1.0]
 
-    D = []
+    D = np.empty((0, 5))
     D_sample_size = 50
     for traj in get_training_data(env,
                                   pi_list=pi_behavior_list,
                                   sample_size=D_sample_size,
                                   mix_ratio=mix_ratio):
-        D += traj
+        D = np.vstack((D, np.array(traj)))
 
-
+    # preprocessing D in numpy array for k
     logging.info("apprenticeship learning starts")
-    #mu_mc_list = estimate_mu_mc(env, pi_exp, phi_linear, gamma, sample_size_mc)
-    mu_mc_list = estimate_mu_mc(env, pi_exp, phi_rbf, gamma, sample_size_mc)
+    mu_mc_list = estimate_mu_mc(env, pi_exp, phi_linear, gamma, sample_size_mc)
+    #mu_mc_list = estimate_mu_mc(env, pi_exp, phi_rbf, gamma, sample_size_mc)
     mu_exp = np.mean(mu_mc_list, axis=0)
 
     pi_init = pi_random
@@ -204,7 +204,6 @@ def main():
     # 5. post-process results (plotting)
     with open("data/res_{}".format(time()), "wb") as f:
         pickle.dump(results, f, protocol=pickle.HIGHEST_PROTOCOL)
-
 
 
 if __name__ == "__main__":

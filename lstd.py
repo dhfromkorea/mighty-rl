@@ -48,35 +48,65 @@ class LSTDQ(object):
         -------
         TODO
         this is LSTD_Q
+        check dimensionality of everything
 
         """
 
         self._D = D
         A_hat = np.zeros((self._p, self._p))
+        b_hat = np.zeros((self._p, 1))
+
+        # perhaps can be done in one step?
+        s = np.vstack(self._D[:, 0])
+        a = np.vstack(self._D[:, 1])
+        r = np.vstack(self._D[:, 2])
+        s_next = np.vstack(self._D[:, 3])
+
+        phi = self._phi(s, a)
+
+        a_next = np.vstack(np.apply_along_axis(pi.choose_action, 1, s_next))
+        phi_next = self._phi(s_next, a_next)
+
+        phi_delta = phi - self._gamma * phi_next
+        # A_hat: q x q matrix
+        A_hat = phi.T.dot(phi_delta)
+        # b_hat: q x p matrix
+        import pdb;pdb.set_trace()
+        b_hat = r.T.dot(phi)
+        A_hat += self._eps * np.identity(self._p)
+        # xi_hat: q x 1 vector
+        W_hat_batch = inv(A_hat).dot(b_hat)
+
+        # iterative
+
+        A_hat = np.zeros((self._p, self._p))
+        b_hat = np.zeros((self._p, 1))
+        for (s, a, r, s_next, done) in self._D:
+            phi = self._phi(s, a)
+
+            # policy to evaluate
+            a_next = pi.choose_action(s_next)
+            psi_delta = phi - self._gamma * self._phi(s_next, a_next)
+
+            A_hat += phi.T.dot(phi_delta)
+            if self._reward_fn is not None:
+                logging.debug("original reward: {}".format(r))
+                r = self._reward_fn(s, a)
+                logging.debug("modified reward: {}".format(r))
+            b_hat += phi.dot(r)
+
         # make A almost always invertible
         # unless eps is A's eigenvalue
         A_hat += self._eps * np.identity(self._p)
-        b_hat = np.zeros((self._p, 1))
-
-        for traj in self._D:
-            for (s, a, r, s_next, done) in traj:
-                phi = self._phi(s, a)
-
-                # policy to evaluate
-                a_next = pi.choose_action(s_next)
-                phi_delta = phi - self._gamma * self._phi(s_next, a_next)
-                A_hat += phi.dot(phi_delta.T)
-
-                # just use reward?
-
-                if self._reward_fn is not None:
-                    logging.debug("original reward: {}".format(r))
-                    r = self._reward_fn(s, a)
-                    logging.debug("modified reward: {}".format(r))
-                b_hat += phi.dot(r)
 
         W_hat = inv(A_hat).dot(b_hat)
         self._W_hat = W_hat
+
+        xi_hat = inv(A_hat).dot(b_hat)
+
+        import pdb;pdb.set_trace()
+        assert np.all(W_hat_batch == W_hat), "batch solution should be equal to iterative solution"
+
         return W_hat
 
 
@@ -137,6 +167,7 @@ class LSTDMu(LSTDQ):
         - vectorize this
         - phi(s, a) or phi(s) when to use
         - what phi or psi to use?
+        - check dimensionality of everytthing
 
 
         """
@@ -162,31 +193,8 @@ class LSTDMu(LSTDQ):
         # b_hat: q x p matrix
         b_hat = psi.T.dot(self._phi(s, a))
         A_hat += self._eps * np.identity(self._q)
-        # xi_hat: q x 1 vector
-        xi_hat_batch = inv(A_hat).dot(b_hat)
-
-        A_hat = np.zeros((self._q, self._q))
-        b_hat = np.zeros((self._q, self._p))
-        for (s, a, r, s_next, done) in self._D:
-            psi = self._psi(s, a)
-
-            # policy to evaluate
-            a_next = pi.choose_action(s_next)
-            psi_delta = psi - self._gamma * self._psi(s_next, a_next)
-
-            A_hat += psi.T.dot(psi_delta)
-            for i in range(self._p):
-                # serve as reward: self._phi(s, a)[i]
-                b_hat[i, :] += (self._phi(s, a)[0, i] * psi).T.flatten()
-
-        # make A almost always invertible
-        # unless eps is A's eigenvalue
-        A_hat += self._eps * np.identity(self._q)
-
+        # xi_hat: q x p matrix
         xi_hat = inv(A_hat).dot(b_hat)
-
-        import pdb;pdb.set_trace()
-        assert xi_hat_batch == xi_hat, "batch solution should be equal to iterative solution"
         self._xi_hat = xi_hat
         return xi_hat
 
@@ -204,7 +212,11 @@ class LSTDMu(LSTDQ):
         - what if no action?
         """
 
-        return self._xi_hat.T.dot(self._psi(s0, a0))
+        # return p x 1 vector
+        # xi_hat q x p
+        # psi 1 x q
+
+        return self._xi_hat.T.dot(self._psi(s0, a0).T)
 
 
 class LSPI(object):

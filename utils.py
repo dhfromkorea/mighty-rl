@@ -44,5 +44,12 @@ def get_psi(scaler, scaled):
 
 def simple_phi(s, a):
     # identity
-    return np.expand_dims(np.hstack((s, a)), axis=1)
+    try:
+        sa = np.hstack((s, a))
+        if len(sa.shape) == 1:
+            sa = np.expand_dims(sa, axis=0)
+    except:
+        import pdb;pdb.set_trace()
+    return sa
+    #return np.expand_dims(np.hstack((s, a)), axis=1)
 

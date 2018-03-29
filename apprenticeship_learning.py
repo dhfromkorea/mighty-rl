@@ -301,7 +301,7 @@ class BatchApprenticeshipLearning(object):
             xi = cvx.Variable(1)
 
         mu_exp = cvx.Parameter(self._p)
-        mu_exp.value = self._mu_exp
+        mu_exp.value = self._mu_exp.flatten()
 
         if self._use_slack:
             C = cvx.Parameter(1)
