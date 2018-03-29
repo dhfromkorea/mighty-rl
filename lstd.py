@@ -145,24 +145,48 @@ class LSTDMu(LSTDQ):
         b_hat = np.zeros((self._q, self._p))
 
         # perhaps can be done in one step?
+        s = np.vstack(self._D[:, 0])
+        a = np.vstack(self._D[:, 1])
+        r = np.vstack(self._D[:, 2])
+        s_next = np.vstack(self._D[:, 3])
 
-        for traj in self._D:
-            for (s, a, r, s_next, done) in traj:
-                psi = self._psi(s, a)
+        psi = self._psi(s, a)
 
-                # policy to evaluate
-                a_next = pi.choose_action(s_next)
-                psi_delta = psi - self._gamma * self._psi(s_next, a_next)
+        a_next = np.vstack(np.apply_along_axis(pi.choose_action, 1, s_next))
+        psi_next = self._psi(s_next, a_next)
 
-                A_hat += psi.dot(psi_delta.T)
-                # just use reward?
-                b_hat += psi.dot(self._phi(s, a).T)
+        psi_delta = psi - self._gamma * psi_next
+
+        # A_hat: q x q matrix
+        A_hat = psi.T.dot(psi_delta)
+        # b_hat: q x p matrix
+        b_hat = psi.T.dot(self._phi(s, a))
+        A_hat += self._eps * np.identity(self._q)
+        # xi_hat: q x 1 vector
+        xi_hat_batch = inv(A_hat).dot(b_hat)
+
+        A_hat = np.zeros((self._q, self._q))
+        b_hat = np.zeros((self._q, self._p))
+        for (s, a, r, s_next, done) in self._D:
+            psi = self._psi(s, a)
+
+            # policy to evaluate
+            a_next = pi.choose_action(s_next)
+            psi_delta = psi - self._gamma * self._psi(s_next, a_next)
+
+            A_hat += psi.T.dot(psi_delta)
+            for i in range(self._p):
+                # serve as reward: self._phi(s, a)[i]
+                b_hat[i, :] += (self._phi(s, a)[0, i] * psi).T.flatten()
 
         # make A almost always invertible
         # unless eps is A's eigenvalue
         A_hat += self._eps * np.identity(self._q)
 
         xi_hat = inv(A_hat).dot(b_hat)
+
+        import pdb;pdb.set_trace()
+        assert xi_hat_batch == xi_hat, "batch solution should be equal to iterative solution"
         self._xi_hat = xi_hat
         return xi_hat
 
@@ -185,7 +209,6 @@ class LSTDMu(LSTDQ):
 
 class LSPI(object):
     """Docstring for LSPI. """
-
     def __init__(self, D, action_list, p, phi, gamma, precision, eps, W_0, reward_fn):
         """TODO: to be defined1.
 
@@ -219,7 +242,12 @@ class LSPI(object):
         W = self._W_0
         D = self._D
 
+
+        t = 0
+
         while True:
+            t+=1
+            print("lspi iter count ", t)
             W_old = W
             # update D
             lstd_q = LSTDQ(p=self._p,
