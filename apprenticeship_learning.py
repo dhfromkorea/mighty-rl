@@ -4,6 +4,8 @@ import cvxpy as cvx
 
 import logging
 logging.basicConfig(filename="debug.log", level=logging.DEBUG)
+logger = logging.getLogger(__name__)
+
 
 class BatchApprenticeshipLearning(object):
     """Batch ApprenticeshipLearning continuous state"""
@@ -104,22 +106,26 @@ class BatchApprenticeshipLearning(object):
                 weight_list.append(W)
                 margin_v_list.append(margin_v)
                 margin_mu_list.append(margin_mu)
+                logger.debug("W: {}".format(W))
+                logger.debug("margin_v: {}".format(margin_v))
+                logger.debug("margin_mu: {}".format(margin_mu))
 
                 if converged:
-                    logging.info("margin_mu converged")
+                    logger.info("margin_mu converged after {} iterations".format(epi_i + 1))
                     break
 
-                get_reward = get_reward_fn(W=W)
+                reward_fn = get_reward_fn(W=W)
 
-                # construct a new mdp with the reward
-
-                # solve the mdp
-                pi_irl = mdp_solver.solver(mdp)
+                # @todo: allow non-batch solver also
+                # solve the mdpr
+                pi_irl = self.solve_mdpr(reward_fn)
                 pi_list.append(pi_irl)
+                logger.debug("pi_irl: {}".format(pi_irl._W))
 
                 # record new mu_irl
                 mu_irl = self.estimate_mu(pi_irl)
                 mu_list.append(mu_irl)
+                logger.debug("mu_irl: {}".format(mu_irl))
 
             # save trial-level data
             margin_v_collection.append(margin_v_list)
@@ -132,10 +138,55 @@ class BatchApprenticeshipLearning(object):
             # choose the best policy for each trial
             pi_best = self.choose_pi_best(mu_list, pi_list)
             pi_best_collection.append(pi_best)
+            logger.debug("pi_best: {}".format(pi_best._W))
+
 
         # dump save the important meta data to numpy
-        results = {}
+        results = {
+                "margin_v": margin_v_collection,
+                "margin_mu": margin_mu_collection,
+                "mu": mu_collection,
+                "weight": weight_collection,
+                "policy": pi_collection,
+                "solutions" : pi_best_collection,
+                }
         return results
+
+
+    def solve_mdpr(self, reward_fn):
+        """TODO: Docstring for solve_mdpr
+
+        note W here is a parameter for Q, not for reward
+        assume D is good enough
+        we should be able to find a good Q_hat
+
+        Parameters
+        ----------
+        reward_fn : TODO
+
+        Returns
+        -------
+        TODO
+
+        """
+        # modify reward
+        # pi = phi(s,a)^T W_0
+        # phi p x 1 theta p x 1
+        np.seed(0)
+        W_0 = np.random.rand(self._p)
+
+        lspi = LSPI(D=self._D,
+                    p=self._p,
+                    phi=self._phi,
+                    gamma=self._gamma,
+                    eps=self._eps,
+                    W_0=W_0,
+                    reward_fn=reward_fn)
+
+        W = lspi.solve()
+        pi = LinearQ2(phi=self._phi, W=W)
+        return pi
+
 
 
     def choose_pi_best(self, mu_list, pi_list):
@@ -268,3 +319,6 @@ class BatchApprenticeshipLearning(object):
         margin_mu = np.min(mu_exp - np.array(mu_list))
 
         return W.value, (margin_v, margin_mu, converged)
+
+
+

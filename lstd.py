@@ -6,7 +6,7 @@ from numpy.linalg import inv
 class LSTDQ(object):
     """Docstring for LSTD. """
 
-    def __init__(self, p, phi, gamma, eps):
+    def __init__(self, p, phi, gamma, eps, reward_fn=None):
         """TODO: to be defined1.
 
         Parameters
@@ -16,14 +16,15 @@ class LSTDQ(object):
         phi : basis function for reward
         gamma : (0, 1)
         eps : small positive value to make A invertible
-
-
+        reward_fn : (optional) non-default reward fn to simulate MDP\R
         """
+
         self._p = p
         self._phi = phi
         self._gamma = gamma
         self._eps = eps
         self._W_hat = None
+        self._reward_fn = reward_fn
 
 
     def fit(self, D, pi):
@@ -60,6 +61,11 @@ class LSTDQ(object):
                 A_hat += phi.dot(phi_delta.T)
 
                 # just use reward?
+
+                if self._reward_fn is not None:
+                    logging.debug("modified reward: {}".format(r))
+                    r = self._reward_fn(s, a)
+                    logging.debug("modified reward: {}".format(r))
                 b_hat += phi.dot(r)
 
         W_hat = inv(A_hat).dot(b_hat)
@@ -113,7 +119,7 @@ class LSTDMu(LSTDQ):
         Parameters
         ----------
         p : dimension of phi
-        k : dimension of psi
+        q : dimension of psi
         pi : policy to evaluate
 
         Returns
@@ -173,44 +179,45 @@ class LSTDMu(LSTDQ):
 class LSPI(object):
     """Docstring for LSPI. """
 
-    def __init__(self, D, collect_D, k, phi, gamma, epsilon, W_0):
+    def __init__(self, D, p, phi, gamma, eps, W_0, reward_fn):
         """TODO: to be defined1.
 
         Parameters
         ----------
         D : TODO
         collet_D : fn that collects extra samples
-        k : TODO
+        p : dimension of phi
         phi : TODO
         gamma : TODO
-        epsilon : TODO
+        eps : TODO
         W_0 : initial weight
-
-
+        reward_fn : (optional) non-default reward fn to simulate MDP\R
         """
         self._D = D
-        self._collect_D = collect_D
-        self._k = k
+        #self._collect_D = collect_D
+        self._p = p
         self._phi = phi
         self._gamma = gamma
-        self._epsilon = epsilon
+        self._eps = eps
         self._W_0 = W_0
         self._W = None
+        self._reward_fn = reward_fn
 
 
     def solve(self):
         W = self._W_0
         D = self._D
 
-        while norm(W - W_old, 2) > self._epsilon:
+        while norm(W - W_old, 2) > self._eps:
             W_old = W
             # update D
             W = LSTDQ(D=D,
-                     k=self._k,
+                     p=self._p,
                      phi=self._phi,
                      gamma=self._gamma,
-                     epsilon=self._epsilon,
-                     W=W)
+                     eps=self._eps,
+                     W=W,
+                     reward_fn=reward_fn)
             #D = self._collect_D(D, W)
         # save
         self._W = W
