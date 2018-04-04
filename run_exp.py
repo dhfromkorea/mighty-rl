@@ -12,10 +12,10 @@ from time import time
 
 
 from lstd import LSTDQ, LSTDMu, LSPI
-from simulator import Simulator
+from envs.simulator import Simulator
 from policy import *
 from utils import *
-from apprenticeship_learning import BatchApprenticeshipLearning as BAL
+from irl.apprenticeship_learning import BatchApprenticeshipLearning as BAL
 
 
 class NearExpertPolicy():
