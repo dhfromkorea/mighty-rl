@@ -54,12 +54,19 @@ class LSTDQ(object):
 
         self._D = D
         A_hat = np.zeros((self._p, self._p))
-        b_hat = np.zeros((self._p, 1))
-
+        b_hat = np.zeros((1, self._p))
         # perhaps can be done in one step?
         s = np.vstack(self._D[:, 0])
         a = np.vstack(self._D[:, 1])
-        r = np.vstack(self._D[:, 2])
+
+        if self._reward_fn is not None:
+            # postprocess reward for IRL
+            r = np.vstack([self._reward_fn(s,a) for s, a in zip(s, a)])
+            logging.debug("modified reward: {}".format(r))
+        else:
+            r = np.vstack(self._D[:, 2])
+            logging.debug("original reward: {}".format(r))
+
         s_next = np.vstack(self._D[:, 3])
 
         phi = self._phi(s, a)
@@ -68,45 +75,15 @@ class LSTDQ(object):
         phi_next = self._phi(s_next, a_next)
 
         phi_delta = phi - self._gamma * phi_next
-        # A_hat: q x q matrix
+        # A_hat: p x p matrix
         A_hat = phi.T.dot(phi_delta)
-        # b_hat: q x p matrix
-        import pdb;pdb.set_trace()
+        # b_hat: 1 x p matrix
         b_hat = r.T.dot(phi)
         A_hat += self._eps * np.identity(self._p)
-        # xi_hat: q x 1 vector
-        W_hat_batch = inv(A_hat).dot(b_hat)
+        # xi_hat: p x p (1 x p)^T = p x 1
+        W_hat = inv(A_hat).dot(b_hat.T)
 
-        # iterative
-
-        A_hat = np.zeros((self._p, self._p))
-        b_hat = np.zeros((self._p, 1))
-        for (s, a, r, s_next, done) in self._D:
-            phi = self._phi(s, a)
-
-            # policy to evaluate
-            a_next = pi.choose_action(s_next)
-            psi_delta = phi - self._gamma * self._phi(s_next, a_next)
-
-            A_hat += phi.T.dot(phi_delta)
-            if self._reward_fn is not None:
-                logging.debug("original reward: {}".format(r))
-                r = self._reward_fn(s, a)
-                logging.debug("modified reward: {}".format(r))
-            b_hat += phi.dot(r)
-
-        # make A almost always invertible
-        # unless eps is A's eigenvalue
-        A_hat += self._eps * np.identity(self._p)
-
-        W_hat = inv(A_hat).dot(b_hat)
         self._W_hat = W_hat
-
-        xi_hat = inv(A_hat).dot(b_hat)
-
-        import pdb;pdb.set_trace()
-        assert np.all(W_hat_batch == W_hat), "batch solution should be equal to iterative solution"
-
         return W_hat
 
 
@@ -155,9 +132,12 @@ class LSTDMu(LSTDQ):
 
         Parameters
         ----------
-        p : dimension of phi
-        q : dimension of psi
-        pi : policy to evaluate
+        p : int
+            dimension of phi
+        q : int
+            dimension of psi
+        pi : Policy
+            policy to evaluate
 
         Returns
         -------
