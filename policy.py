@@ -204,7 +204,6 @@ class LinearQ(nn.Module):
         return np.random.choice(ties)
 
 
-
 class LinearQ2(object):
     """LinearQ for continuous-state, discrete_action """
 
@@ -252,6 +251,5 @@ class LinearQ2(object):
         Q_hat = self.predict(s)
         ties = np.flatnonzero(Q_hat == Q_hat.max())
         return np.random.choice(ties)
-
 
 

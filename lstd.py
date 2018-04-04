@@ -57,30 +57,34 @@ class LSTDQ(object):
         b_hat = np.zeros((1, self._p))
         # perhaps can be done in one step?
         s = np.vstack(self._D[:, 0])
+        s_next = np.vstack(self._D[:, 3])
         a = np.vstack(self._D[:, 1])
+        a_next = np.vstack(np.apply_along_axis(pi.choose_action, 1, s_next))
+
+        logging.info("fitting D of the dimension:\n{}".format(D.shape))
 
         if self._reward_fn is not None:
             # postprocess reward for IRL
             r = np.vstack([self._reward_fn(s,a) for s, a in zip(s, a)])
+            #r = np.vstack([1 for s, a in zip(s, a)])
+            #r = np.vstack([np.random.choice([-1, 1]) for s, a in zip(s, a)])
             logging.debug("modified reward: {}".format(r))
         else:
             r = np.vstack(self._D[:, 2])
             logging.debug("original reward: {}".format(r))
 
-        s_next = np.vstack(self._D[:, 3])
 
         phi = self._phi(s, a)
-
-        a_next = np.vstack(np.apply_along_axis(pi.choose_action, 1, s_next))
         phi_next = self._phi(s_next, a_next)
-
         phi_delta = phi - self._gamma * phi_next
+
         # A_hat: p x p matrix
         A_hat = phi.T.dot(phi_delta)
         # b_hat: 1 x p matrix
         b_hat = r.T.dot(phi)
+        logging.info("A_hat\n{}".format(A_hat))
         A_hat += self._eps * np.identity(self._p)
-        # xi_hat: p x p (1 x p)^T = p x 1
+        # W_hat: p x p (1 x p)^T = p x 1
         W_hat = inv(A_hat).dot(b_hat.T)
 
         self._W_hat = W_hat
@@ -201,7 +205,7 @@ class LSTDMu(LSTDQ):
 
 class LSPI(object):
     """Docstring for LSPI. """
-    def __init__(self, D, action_list, p, phi, gamma, precision, eps, W_0, reward_fn):
+    def __init__(self, D, action_list, p, phi, gamma, precision, eps, W_0, reward_fn, max_iter=50):
         """TODO: to be defined1.
 
         Parameters
@@ -216,6 +220,8 @@ class LSPI(object):
         eps : make A invertible
         W_0 : initial weight
         reward_fn : (optional) non-default reward fn to simulate MDP\R
+        max_iter : int
+            The maximum number of iterations force termination.
         """
         self._D = D
         self._action_list = action_list
@@ -228,6 +234,7 @@ class LSPI(object):
         self._W_0 = W_0
         self._W = None
         self._reward_fn = reward_fn
+        self._max_iter = max_iter
 
 
     def solve(self):
