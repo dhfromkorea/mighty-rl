@@ -2,7 +2,7 @@
 # heavily modified
 
 import numpy as np
-from numpy.linalg import inv, norm
+from numpy.linalg import inv, norm, cond
 import logging
 
 
@@ -65,8 +65,10 @@ class LSTDQ(object):
 
         if self._reward_fn is not None:
             # postprocess reward for IRL
+            #r = np.vstack([-1 for s, a in zip(s, a)])
             r = np.vstack([self._reward_fn(s,a) for s, a in zip(s, a)])
-            #r = np.vstack([1 for s, a in zip(s, a)])
+            #r = np.vstack([np.min([self._reward_fn(s,a), -0.001]) for s, a in zip(s, a)])
+            #r = np.vstack([-100 for s, a in zip(s, a)])
             #r = np.vstack([np.random.choice([-1, 1]) for s, a in zip(s, a)])
             logging.debug("modified reward: {}".format(r))
         else:
@@ -83,6 +85,8 @@ class LSTDQ(object):
         # b_hat: 1 x p matrix
         b_hat = r.T.dot(phi)
         logging.info("A_hat\n{}".format(A_hat))
+        logging.info("condition number of A_hat\n{}".format(cond(A_hat)))
+        loggi
         A_hat += self._eps * np.identity(self._p)
         # W_hat: p x p (1 x p)^T = p x 1
         W_hat = inv(A_hat).dot(b_hat.T)
@@ -258,9 +262,8 @@ class LSPI(object):
                           W=W_old,
                           phi=self._phi)
             W = lstd_q.fit(D=self._D, pi=pi)
-            #D = self._collect_D(D, W)
-            logging.info("lspi W {}".format(W))
-            logging.info("lspi W old {}".format(W_old))
+            logging.debug("lspi W {}".format(W))
+            logging.debug("lspi W old {}".format(W_old))
             logging.info("lspi norm {}".format(norm(W - W_old, 2)))
             if norm(W - W_old, 2) < self._precision:
                 break

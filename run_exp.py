@@ -16,8 +16,9 @@ from envs.simulator import Simulator
 from policy import *
 from utils import *
 from irl.apprenticeship_learning import ApprenticeshipLearning as AL
-from fa import LinearQ3
+from fa import LinearQ3, Estimator
 import plotting
+from envs.simulator import Simulator
 
 
 class NearExpertPolicy():
@@ -129,8 +130,8 @@ def main():
     psi_linear = phi_linear
 
     # radial basis (gaussian) fn
-    p_rbf = 200
-    q_rbf = 200
+    p_rbf = 100
+    q_rbf = 100
     phi_rbf = get_basis_function(env_id)
     psi_rbf = phi_rbf
 
@@ -141,18 +142,18 @@ def main():
     # 2. define hyperparams
     gamma= 0.95
     n_trial = 2
-    n_iteration = 10
+    n_iteration = 2
     # @note: hard-coded
     # this's gotta be sufficiently large to avoid mc variance issue
-    sample_size_mc = 10**2
-    p = p_linear
-    q = q_linear
-    phi = phi_linear
-    psi = psi_linear
-    #p = p_rbf
-    #q = q_rbf
-    #phi = phi_rbf
-    #psi = psi_rbf
+    sample_size_mc = 2
+    #p = p_linear
+    #q = q_linear
+    #phi = phi_linear
+    #psi = psi_linear
+    p = p_rbf
+    q = q_rbf
+    phi = phi_rbf
+    psi = psi_rbf
     precision = 1e-4
     use_slack = False
     # @note: reward may have to be scaled to work with slack penalty
@@ -160,33 +161,22 @@ def main():
     eps = 0.0001
     #eps = 0
     # this should be large to account for varying init sate
-    mu_sample_size = 10**2
+    mu_sample_size = 2
 
     logging.info("collect a batch of data (D) from pi_expert (and some noise)")
     pi_exp = NearExpertPolicy()
     pi_random = get_random_policy()
-    pi_behavior_list = [pi_exp]
-    #mix_ratio = [0.8, 0.2]
-    mix_ratio = [1.0]
-
-    D = np.empty((0, 5))
-    # number of episodes
-    D_sample_size = 50
-    for traj in get_training_data(env,
-                                  pi_list=pi_behavior_list,
-                                  sample_size=D_sample_size,
-                                  mix_ratio=mix_ratio):
-        D = np.vstack((D, np.array(traj)))
 
     # preprocessing D in numpy array for k
     logging.info("apprenticeship learning starts")
+    logging.info("feature dim:\n{}".format(phi))
 
-	mu_exp = AL.estimate_mu(env=env,
-							pi_eval=pi_exp,
-							mu_sample_size=sample_size_mc,
-							phi=self._phi,
-							gamma=self._gamma,
-							return_epi_len=False)
+    mu_exp = AL.estimate_mu(env=env,
+                            pi_eval=pi_exp,
+                            mu_sample_size=sample_size_mc,
+                            phi=phi,
+                            gamma=gamma,
+                            return_epi_len=False)
     #mu_mc_list = estimate_mu_mc(env, pi_exp, phi_linear, gamma, sample_size_mc)
     #mu_mc_list = estimate_mu_mc(env, pi_exp, phi_rbf, gamma, sample_size_mc)
     #mu_exp = np.mean(mu_mc_list, axis=0)
@@ -194,11 +184,11 @@ def main():
     pi_init = pi_random
 
     mdp_solver = LinearQ3(env=env,
-                          estimator=Estimator(),
-                          episode_length=100,
+                          phi=phi,
+                          action_list=action_list,
+                          n_episode=10,
                           epsilon=0.0,
-                          gamma=0.99,
-                          plotting=plotting)
+                          gamma=0.99)
 
     al = AL(env=env,
           pi_init=pi_init,
@@ -220,6 +210,31 @@ def main():
     results = al.run(n_trial=n_trial, n_iteration=n_iteration)
 
     # 5. post-process results (plotting)
+    pi_irl = results["policy_best"][0]
+    weight_irl = results["weight_best"][0]
+    margin_v = results["margin_v"][0]
+    margin_mu = results["margin_mu"][0]
+    weight = results["weight"][0]
+
+    state_dim = env.observation_space.shape[0]
+    # discrete action
+    action_dim = 1
+    n_action = env.action_space.n
+    sim = Simulator(env, state_dim=state_dim, action_dim=action_dim)
+
+    D_irl, stats = sim.simulate(pi_irl, n_trial=1,
+                                n_episode=15, return_stats=True)
+
+    plotting.plot_cost_to_go_mountain_car(env, pi_irl._estimator)
+    plotting.plot_episode_stats(stats, smoothing_window=5)
+
+    np.save("data/D_irl.npy".format(time()), D_irl)
+    np.save("data/margin_v.npy".format(time()), margin_v)
+    np.save("data/margin_mu.npy".format(time()), margin_mu)
+    np.save("data/weight.npy".format(time()), weight)
+    np.save("data/weight_best.npy".format(time()), weight_irl)
+    print("D_irl shape{}".format(D_irl.shape))
+
     with open("data/res_{}".format(time()), "wb") as f:
         pickle.dump(results, f, protocol=pickle.HIGHEST_PROTOCOL)
 
