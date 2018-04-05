@@ -1,10 +1,17 @@
 import numpy as np
+from numpy.linalg import norm
 from tqdm import tqdm
 import cvxpy as cvx
 import logging
+import itertools
+
 
 from lstd import LSTDQ, LSTDMu, LSPI
 from policy import LinearQ2
+
+import time
+import os
+from multiprocessing import Pool
 
 class ApprenticeshipLearning(object):
     """ApprenticeshipLearning continuous state
@@ -88,6 +95,7 @@ class ApprenticeshipLearning(object):
         - check how to sample initial state
         - check scaler
         """
+        al = ApprenticeshipLearning
         mu_exp = self._mu_exp
 
         # todo: traj legnth or value of pi_expert
@@ -97,6 +105,7 @@ class ApprenticeshipLearning(object):
         weight_collection = []
         mu_collection = []
         pi_best_collection = []
+        w_best_collection = []
 
         for trial_i in tqdm(range(n_trial)):
             margin_v_list = []
@@ -106,7 +115,14 @@ class ApprenticeshipLearning(object):
             mu_list = []
 
             # pick a random policy as init policy
-            mu_irl = self.estimate_mu(self._pi_init)
+
+            mu_irl = al.estimate_mu(env=self._env,
+                                    pi_eval=self._pi_init,
+                                    mu_sample_size=self._mu_sample_size,
+                                    phi=self._phi,
+                                    gamma=self._gamma,
+                                    return_epi_len=False)
+
             mu_list.append(mu_irl)
             pi_list.append(self._pi_init)
 
@@ -119,7 +135,7 @@ class ApprenticeshipLearning(object):
                 weight_list.append(W)
                 margin_v_list.append(margin_v)
                 margin_mu_list.append(margin_mu)
-                logging.info("W: {}".format(W))
+                logging.info("W (first five): {}".format(W[:5]))
                 logging.info("margin_v: {}".format(margin_v))
                 logging.info("margin_mu: {}".format(margin_mu))
 
@@ -134,19 +150,37 @@ class ApprenticeshipLearning(object):
                 if self._mdp_solver is None:
                     pi_irl = self.solve_mdpr(reward_fn)
                 else:
-                    pi_irl = self._mdp_solver.solve(reward_fn)
+                    start_t = time.time()
+                    pi_irl, _ = self._mdp_solver.solve(reward_fn)
+                    logging.info("mdp solver took {}s".format(time.time() - start_t))
 
                 pi_list.append(pi_irl)
-                logging.debug("pi_irl: {}".format(pi_irl._W))
+                #logging.debug("pi_irl: {}".format(pi_irl._W))
 
                 # record new mu_irl
-                al = ApprenticeshipLearning
-                mu_irl = al.estimate_mu(env=env,
+                #start_t = time.time()
+                #try:
+                #    n_threads = os.cpu_count() - 2
+                #    param_list = []
+                #    for i in range(n_threads):
+                #        ps = [self._env, pi_irl, self._mu_sample_size // n_threads,
+                #              self._phi, self._gamma, False]
+                #        param_list.append(ps)
+                #    pool = Pool(n_threads)
+                #    res = pool.map(al.estimate_mu, zip(param_list))
+                #finally:
+                #    pool.close()
+                #    pool.join()
+                #mu_irl = np.mean(res, axis=1)
+
+                mu_irl = al.estimate_mu(env=self._env,
                                         pi_eval=pi_irl,
                                         mu_sample_size=self._mu_sample_size,
                                         phi=self._phi,
                                         gamma=self._gamma,
                                         return_epi_len=False)
+
+                logging.info("mu estimation took {}s".format(time.time() - start_t))
                 mu_list.append(mu_irl)
                 logging.debug("mu_irl: {}".format(mu_irl))
 
@@ -159,9 +193,16 @@ class ApprenticeshipLearning(object):
 
 
             # choose the best policy for each trial
-            pi_best = self._choose_pi_best(mu_list, pi_list)
+
+            mu_list_ = np.array([mu.flatten() for mu in mu_list])
+            best_i = np.argmin(norm(self._mu_exp - mu_list_, 2, axis=1))
+
+            pi_best = self._choose_pi_best(best_i, pi_list)
             pi_best_collection.append(pi_best)
-            logging.info("pi_best: {}".format(pi_best._W))
+
+            w_best = weight_list[best_i - 1]
+            w_best_collection.append(w_best)
+            #logging.info("pi_best: {}".format(pi_best._W))
 
 
         # dump save the important meta data to numpy
@@ -171,12 +212,13 @@ class ApprenticeshipLearning(object):
                 "mu": mu_collection,
                 "weight": weight_collection,
                 "policy": pi_collection,
-                "solutions" : pi_best_collection,
+                "policy_best" : pi_best_collection,
+                "weight_best" : w_best_collection,
                 }
         return results
 
 
-    def _choose_pi_best(self, mu_list, pi_list):
+    def _choose_pi_best(self, best_i, pi_list):
         """TODO: Docstring for choose_pi_best.
 
         Parameters
@@ -191,46 +233,51 @@ class ApprenticeshipLearning(object):
         - try solve for best convex combination to minimize mu distance
 
         """
-        pi_best = pi_list[np.argmin(np.abs(self._mu_exp - np.array(mu_list)))]
-        return pi_best
+        # @todo: remove 1 dim in general
+        return pi_list[best_i]
 
 
     @staticmethod
-    def estimate_mu(self, env, pi_eval, mu_sample_size, phi, gamma, return_epi_len=False):
+    def estimate_mu(env, pi_eval, mu_sample_size, phi, gamma, return_epi_len=False):
         """TODO: Docstring for something.
 
         need to refit using a new policy to evaluate
         Parameters
         ----------
-        pi_eval : policy under which to estimate mu
+        pi_eval : Policy
+            policy under which to estimate mu
+        mu_sample_size : int
+        phi : array
+        gamma : float
+        return_epi_len : bool
 
         Returns
         -------
-        TODO
+        TODO: paralleze the computation
 
         """
-		mus = []
+        logging.info("estimating mu with {} samples".format(mu_sample_size))
+        mu_list = []
         epi_length_list = []
 
-		for epi_i in range(self._mu_sample_size):
-			# initial state is not fixed
-			s = env.reset()
-			ss_init.append(s)
-			mu = 0.0
-			for t in itertools.count():
-				a = pi_eval.choose_action(s)
-				s_next, r, done, _ = env.step(a)
-				mu += gamma ** t * phi(s, a)
-				s = s_next
-				if done:
-					break
+        for epi_i in range(mu_sample_size):
+            # initial state is not fixed
+            s = env.reset()
+            mu = 0.0
+            for t in itertools.count():
+                a = pi_eval.choose_action(s)
+                s_next, r, done, _ = env.step(a)
+                mu += gamma ** t * phi(s, a)
+                s = s_next
+                if done:
+                    break
             epi_length_list.append(t)
-			mus.append(mu)
+            mu_list.append(mu)
 
         mu_hat = np.array(mu_list).mean(axis=0)
         if return_epi_len:
-			epi_length_avg = np.mean(epi_length_list)
-			return mu_hat, epi_length_avg
+            epi_length_avg = np.mean(epi_length_list)
+            return mu_hat, epi_length_avg
         else:
             return mu_hat
 
@@ -293,6 +340,7 @@ class ApprenticeshipLearning(object):
         constraints = []
 
         for mu in mu_list:
+            mu = mu.flatten()
             if self._use_slack:
                 # xi helps expert to perform better
                 constraints += [W.T * mu_exp + xi >= W.T * mu + t]
@@ -311,8 +359,10 @@ class ApprenticeshipLearning(object):
 
         # convergence in mu implies convergence in value (induced convergence)
         # but we don't use this relation here
-        margin_mu = np.min(np.abs(np.array(mu_exp.value) - np.array(mu_list)))
-
+        # @todo: remove 1 dim in general
+        mu_list = np.array([mu.flatten() for mu in mu_list])
+        margin_mu_list = norm(np.array(mu_exp.value).T - mu_list, 2, axis=1)
+        margin_mu = np.min(margin_mu_list)
         return np.array(W.value), (margin_v, margin_mu, converged)
 
 
@@ -320,8 +370,7 @@ class ApprenticeshipLearning(object):
 class BatchApprenticeshipLearning(object):
     """Batch ApprenticeshipLearning continuous state"""
 
-    def __init__(self, env,
-                       pi_init,
+    def __init__(self, pi_init,
                        D,
                        action_list,
                        p,
@@ -342,7 +391,6 @@ class BatchApprenticeshipLearning(object):
 
         Parameters
         ----------
-        env : TODO
         pi_init : TODO
 
         D : trajectory data
@@ -359,7 +407,6 @@ class BatchApprenticeshipLearning(object):
         use_slack : whether to use slack for convex optimization
         slack_penalty : scaling term
         """
-        self._env = env
         self._pi_init = pi_init
 
         self._D = D
@@ -404,6 +451,7 @@ class BatchApprenticeshipLearning(object):
         margin_mu_collection = []
         pi_collection = []
         weight_collection = []
+        w_best_collection = []
         mu_collection = []
         pi_best_collection = []
 
@@ -446,7 +494,7 @@ class BatchApprenticeshipLearning(object):
                     pi_irl = self._mdp_solver.solve(reward_fn)
 
                 pi_list.append(pi_irl)
-                logging.debug("pi_irl: {}".format(pi_irl._W))
+                #logging.debug("pi_irl: {}".format(pi_irl._W))
 
                 # record new mu_irl
                 mu_irl = self.estimate_mu(pi_irl)
@@ -462,9 +510,15 @@ class BatchApprenticeshipLearning(object):
 
 
             # choose the best policy for each trial
-            pi_best = self._choose_pi_best(mu_list, pi_list)
+            mu_list_ = np.array([mu.flatten() for mu in mu_list])
+            best_i = np.argmin(norm(self._mu_exp - mu_list_, 2, axis=1))
+
+            pi_best = self._choose_pi_best(best_i, pi_list)
             pi_best_collection.append(pi_best)
-            logging.info("pi_best: {}".format(pi_best._W))
+
+            w_best = weight_list[best_i - 1]
+            w_best_collection.append(w_best)
+            #logging.info("pi_best: {}".format(pi_best._W))
 
 
         # dump save the important meta data to numpy
@@ -474,9 +528,11 @@ class BatchApprenticeshipLearning(object):
                 "mu": mu_collection,
                 "weight": weight_collection,
                 "policy": pi_collection,
-                "solutions" : pi_best_collection,
+                "policy_best" : pi_best_collection,
+                "weight_best" : w_best_collection,
                 }
         return results
+
 
 
     def solve_mdpr(self, reward_fn):
@@ -497,14 +553,13 @@ class BatchApprenticeshipLearning(object):
         TODO
 
         """
-        raise Exception("need to be debugged")
+        #raise Exception("need to be debugged")
         logging.info("solving MDP\R with LSPI")
         # modify reward
         # pi = phi(s,a)^T W_0
         # phi p x 1 theta p x 1
         np.random.seed(0)
         W_0 = np.random.rand(self._p)
-        import time
         start = time.time()
 
         lspi = LSPI(D=self._D,
@@ -540,8 +595,10 @@ class BatchApprenticeshipLearning(object):
         - try solve for best convex combination to minimize mu distance
 
         """
-        pi_best = pi_list[np.argmin(np.abs(self._mu_exp - np.array(mu_list)))]
+        mu_list = np.array([mu.flatten() for mu in mu_list])
+        pi_best = pi_list[np.argmin(norm(self._mu_exp - mu_list, 2, axis=1))]
         return pi_best
+
 
 
     def estimate_mu(self, pi_eval):
@@ -653,7 +710,9 @@ class BatchApprenticeshipLearning(object):
 
         # convergence in mu implies convergence in value (induced convergence)
         # but we don't use this relation here
-        margin_mu = np.min(np.abs(np.array(mu_exp.value) - np.array(mu_list)))
+        mu_list = np.array([mu.flatten() for mu in mu_list])
+        margin_mu_list = norm(np.array(mu_exp.value) - mu_list, 2, axis=1)
+        margin_mu = np.min(margin_mu_list)
 
         return np.array(W.value), (margin_v, margin_mu, converged)
 
