@@ -1,5 +1,4 @@
 class MDP(object):
-
     """Docstring for MDP. """
 
     def __init__(self, env):
@@ -50,22 +49,23 @@ class MDP(object):
 
 
 class MDPR(MDP):
+    """Docstring for MDP.
 
-    """Docstring for MDP. """
+    assuming we have simualtor
+
+    """
 
     def __init__(self, env, T, R):
         """TODO: to be defined1.
 
+        assuming we have openai env
+
         Parameters
         ----------
         env : TODO
-        T : TODO
-        R : TODO
 
         """
         self._env = env
-        self._T = T
-        self._R = R
         # @todo: make this flexible
         self._s = env.reset()
 

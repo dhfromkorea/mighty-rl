@@ -49,6 +49,7 @@ def setup_logging(
     else:
         logging.basicConfig(level=default_level)
 
+
 def get_behavior_policies(only_expert=False):
     pi_list = []
     if not only_expert:
@@ -80,6 +81,7 @@ def get_training_data(env, pi_list, sample_size, mix_ratio):
         traj_list += trajs
     return traj_list
 
+
 def estimate_mu_mc(env, pi, phi, gamma, n_episode):
     mus = []
     ss_init = []
@@ -99,6 +101,7 @@ def estimate_mu_mc(env, pi, phi, gamma, n_episode):
                 break
         mus.append(mu)
     return np.array(mus)
+
 
 def get_basis_function(env_id):
     env = gym.envs.make(env_id)
@@ -129,8 +132,8 @@ def main():
     psi_linear = phi_linear
 
     # radial basis (gaussian) fn
-    p_rbf = 200
-    q_rbf = 200
+    p_rbf = 100
+    q_rbf = 100
     phi_rbf = get_basis_function(env_id)
     psi_rbf = phi_rbf
 
@@ -139,26 +142,26 @@ def main():
     init_s_sampler = lambda : [np.random.uniform(-0.4, -0.6), 0.0]
 
     # 2. define hyperparams
-    gamma= 0.95
+    gamma= 0.97
     n_trial = 2
     n_iteration = 10
     # @note: hard-coded
     # this's gotta be sufficiently large to avoid mc variance issue
     sample_size_mc = 10**2
-    p = p_linear
-    q = q_linear
-    phi = phi_linear
-    psi = psi_linear
-    #p = p_rbf
-    #q = q_rbf
-    #phi = phi_rbf
-    #psi = psi_rbf
-    precision = 1e-4
+    #p = p_linear
+    #q = q_linear
+    #phi = phi_linear
+    #psi = psi_linear
+    p = p_rbf
+    q = q_rbf
+    phi = phi_rbf
+    psi = psi_rbf
+    precision = 0.1
     use_slack = False
     # @note: reward may have to be scaled to work with slack penalty
     slack_penalty = 1e-3
-    eps = 0.0001
-    #eps = 0
+    #eps = 0.0001
+    eps = 0
     # this should be large to account for varying init sate
     mu_sample_size = 10**2
 
@@ -180,21 +183,14 @@ def main():
 
     # preprocessing D in numpy array for k
     logging.info("apprenticeship learning starts")
-    mu_mc_list = estimate_mu_mc(env, pi_exp, phi_linear, gamma, sample_size_mc)
-    #mu_mc_list = estimate_mu_mc(env, pi_exp, phi_rbf, gamma, sample_size_mc)
+    mu_mc_list = estimate_mu_mc(env, pi_exp, phi, gamma, sample_size_mc)
     mu_exp = np.mean(mu_mc_list, axis=0)
 
     pi_init = pi_random
 
-    mdp_solver = LinearQ3(env=env,
-                          estimator=Estimator(),
-                          episode_length=100,
-                          epsilon=0.0,
-                          gamma=0.99,
-                          plotting=plotting)
+    mdp_solver = None
 
-    bal = BAL(env=env,
-              pi_init=pi_init,
+    bal = BAL(pi_init=pi_init,
               D=D,
               action_list=action_list,
               p=p,
@@ -214,6 +210,19 @@ def main():
     results = bal.run(n_trial=n_trial, n_iteration=n_iteration)
 
     # 5. post-process results (plotting)
+    import pdb;pdb.set_trace()
+    pi_irl = results["solutions"][0]
+    pi_behavior_list = [pi_irl]
+    mix_ratio = [1.0]
+    D_irl = np.empty((0, 5))
+    for traj in get_training_data(env,
+                                  pi_list=pi_behavior_list,
+                                  sample_size=D_sample_size,
+                                  mix_ratio=mix_ratio):
+        D_irl = np.vstack((D_irl, np.array(traj)))
+    print("D_irl shape{}".format(D_irl.shape))
+    np.save("data/D_irl", D_irl)
+
     with open("data/res_{}".format(time()), "wb") as f:
         pickle.dump(results, f, protocol=pickle.HIGHEST_PROTOCOL)
 
