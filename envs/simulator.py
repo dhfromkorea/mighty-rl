@@ -1,9 +1,10 @@
 from collections import namedtuple
 from itertools import count
-
+import sys
 import numpy as np
 import logging
-logging.basicConfig(filename="debug.log", level=logging.DEBUG)
+
+import plotting
 
 T = namedtuple("Transition", ["s", "a", "r", "s_next", "done"])
 
@@ -29,7 +30,7 @@ class Simulator(object):
         self._action_dim = action_dim
 
 
-    def simulate(self, pi, n_trial, n_episode):
+    def simulate(self, pi, n_trial, n_episode, return_stats=False):
         """TODO: Docstring for simulate
 
         Parameters
@@ -41,7 +42,11 @@ class Simulator(object):
         D: a collection of transition samples
 
         """
-        #D = [[[] for _ in range(self._n_episode)] for _ in range(self._n_trial)]
+
+        stats = plotting.EpisodeStats(
+            episode_lengths=np.zeros(n_episode),
+            episode_rewards=np.zeros(n_episode))
+
         D = []
 
         env = self._env
@@ -50,6 +55,8 @@ class Simulator(object):
 
             for epi_i in range(n_episode):
 
+                last_reward = stats.episode_rewards[epi_i - 1]
+                sys.stdout.flush()
                 #D_e = D_t[epi_i]
                 traj = []
                 s = env.reset()
@@ -57,18 +64,26 @@ class Simulator(object):
                 for t in count():
                     a = pi.choose_action(s)
                     s_next, r, done, _ = env.step(a)
-                    logging.debug("s {} a {} s_next {} r {} done {}".format(s, a, r, s_next, done))
 
-                    a_next = pi.choose_action(s)
+                    stats.episode_rewards[epi_i] += r
+                    stats.episode_lengths[epi_i] = t
+
+                    logging.debug("s {} a {} s_next {} r {} done {}".format(s, a, r, s_next, done))
                     transition = T(s=s, a=a, r=r, s_next=s_next, done=done)
                     traj.append(transition)
 
                     s = s_next
+
                     if done:
                         logging.debug("done after {} steps".format(t))
                         break
 
+                    print("\rStep {} @ Episode {}/{} ({})".format(t, epi_i + 1, n_episode, last_reward), end="")
+
                 D.append(traj)
-        return D
+        if return_stats:
+            return D, stats
+        else:
+            return D
 
 

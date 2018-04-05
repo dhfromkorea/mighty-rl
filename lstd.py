@@ -1,12 +1,18 @@
-import numpy as np
-from numpy.linalg import inv
+# inspired by: https://github.com/stober/lspi/blob/master/src/lspi.py
+# heavily modified
 
-# inspired: https://github.com/stober/lspi/blob/master/src/lspi.py
+import numpy as np
+from numpy.linalg import inv, norm, cond
+import logging
+
+
+from policy import LinearQ2
+
 
 class LSTDQ(object):
     """Docstring for LSTD. """
 
-    def __init__(self, p, phi, gamma, eps):
+    def __init__(self, p, phi, gamma, eps, reward_fn=None):
         """TODO: to be defined1.
 
         Parameters
@@ -16,14 +22,15 @@ class LSTDQ(object):
         phi : basis function for reward
         gamma : (0, 1)
         eps : small positive value to make A invertible
-        W : policy to evaluate
-
-
+        reward_fn : (optional) non-default reward fn to simulate MDP\R
         """
+
         self._p = p
         self._phi = phi
         self._gamma = gamma
         self._eps = eps
+        self._reward_fn = reward_fn
+        self._D = None
         self._W_hat = None
 
 
@@ -41,29 +48,49 @@ class LSTDQ(object):
         -------
         TODO
         this is LSTD_Q
+        check dimensionality of everything
 
         """
 
         self._D = D
         A_hat = np.zeros((self._p, self._p))
-        # make A almost always invertible
-        # unless eps is A's eigenvalue
+        b_hat = np.zeros((1, self._p))
+        # perhaps can be done in one step?
+        s = np.vstack(self._D[:, 0])
+        s_next = np.vstack(self._D[:, 3])
+        a = np.vstack(self._D[:, 1])
+        a_next = np.vstack(np.apply_along_axis(pi.choose_action, 1, s_next))
+
+        logging.info("fitting D of the dimension:\n{}".format(D.shape))
+
+        if self._reward_fn is not None:
+            # postprocess reward for IRL
+            #r = np.vstack([-1 for s, a in zip(s, a)])
+            r = np.vstack([self._reward_fn(s,a) for s, a in zip(s, a)])
+            #r = np.vstack([np.min([self._reward_fn(s,a), -0.001]) for s, a in zip(s, a)])
+            #r = np.vstack([-100 for s, a in zip(s, a)])
+            #r = np.vstack([np.random.choice([-1, 1]) for s, a in zip(s, a)])
+            logging.debug("modified reward: {}".format(r))
+        else:
+            r = np.vstack(self._D[:, 2])
+            logging.debug("original reward: {}".format(r))
+
+
+        phi = self._phi(s, a)
+        phi_next = self._phi(s_next, a_next)
+        phi_delta = phi - self._gamma * phi_next
+
+        # A_hat: p x p matrix
+        A_hat = phi.T.dot(phi_delta)
+        # b_hat: 1 x p matrix
+        b_hat = r.T.dot(phi)
+        logging.info("A_hat\n{}".format(A_hat))
+        logging.info("condition number of A_hat\n{}".format(cond(A_hat)))
+        loggi
         A_hat += self._eps * np.identity(self._p)
-        b_hat = np.zeros((self._p, 1))
+        # W_hat: p x p (1 x p)^T = p x 1
+        W_hat = inv(A_hat).dot(b_hat.T)
 
-        for traj in self._D:
-            for (s, a, r, s_next, done) in traj:
-                phi = self._phi(s, a)
-
-                # policy to evaluate
-                a_next = pi.choose_action(s_next)
-                phi_delta = phi - self._gamma * self._phi(s_next, a_next)
-                A_hat += phi.dot(phi_delta.T)
-
-                # just use reward?
-                b_hat += phi.dot(r)
-
-        W_hat = inv(A_hat).dot(b_hat)
         self._W_hat = W_hat
         return W_hat
 
@@ -113,9 +140,12 @@ class LSTDMu(LSTDQ):
 
         Parameters
         ----------
-        p : dimension of phi
-        k : dimension of psi
-        pi : policy to evaluate
+        p : int
+            dimension of phi
+        q : int
+            dimension of psi
+        pi : Policy
+            policy to evaluate
 
         Returns
         -------
@@ -125,6 +155,7 @@ class LSTDMu(LSTDQ):
         - vectorize this
         - phi(s, a) or phi(s) when to use
         - what phi or psi to use?
+        - check dimensionality of everytthing
 
 
         """
@@ -133,23 +164,24 @@ class LSTDMu(LSTDQ):
         b_hat = np.zeros((self._q, self._p))
 
         # perhaps can be done in one step?
+        s = np.vstack(self._D[:, 0])
+        a = np.vstack(self._D[:, 1])
+        r = np.vstack(self._D[:, 2])
+        s_next = np.vstack(self._D[:, 3])
 
-        for traj in self._D:
-            for (s, a, r, s_next, done) in traj:
-                psi = self._psi(s, a)
+        psi = self._psi(s, a)
 
-                # policy to evaluate
-                a_next = pi.choose_action(s_next)
-                psi_delta = psi - self._gamma * self._psi(s_next, a_next)
+        a_next = np.vstack(np.apply_along_axis(pi.choose_action, 1, s_next))
+        psi_next = self._psi(s_next, a_next)
 
-                A_hat += psi.dot(psi_delta.T)
-                # just use reward?
-                b_hat += psi.dot(self._phi(s, a).T)
+        psi_delta = psi - self._gamma * psi_next
 
-        # make A almost always invertible
-        # unless eps is A's eigenvalue
+        # A_hat: q x q matrix
+        A_hat = psi.T.dot(psi_delta)
+        # b_hat: q x p matrix
+        b_hat = psi.T.dot(self._phi(s, a))
         A_hat += self._eps * np.identity(self._q)
-
+        # xi_hat: q x p matrix
         xi_hat = inv(A_hat).dot(b_hat)
         self._xi_hat = xi_hat
         return xi_hat
@@ -168,51 +200,73 @@ class LSTDMu(LSTDQ):
         - what if no action?
         """
 
-        return self._xi_hat.T.dot(self._psi(s0, a0))
+        # return p x 1 vector
+        # xi_hat q x p
+        # psi 1 x q
+
+        return self._xi_hat.T.dot(self._psi(s0, a0).T)
 
 
 class LSPI(object):
     """Docstring for LSPI. """
-
-    def __init__(self, D, collect_D, k, phi, gamma, epsilon, W_0):
+    def __init__(self, D, action_list, p, phi, gamma, precision, eps, W_0, reward_fn, max_iter=50):
         """TODO: to be defined1.
 
         Parameters
         ----------
         D : TODO
+        action)list : list of valid action indices
         collet_D : fn that collects extra samples
-        k : TODO
+        p : dimension of phi
         phi : TODO
         gamma : TODO
-        epsilon : TODO
+        precision : convergence threshold
+        eps : make A invertible
         W_0 : initial weight
-
-
+        reward_fn : (optional) non-default reward fn to simulate MDP\R
+        max_iter : int
+            The maximum number of iterations force termination.
         """
         self._D = D
-        self._collect_D = collect_D
-        self._k = k
+        self._action_list = action_list
+        #self._collect_D = collect_D
+        self._p = p
         self._phi = phi
         self._gamma = gamma
-        self._epsilon = epsilon
+        self._precision = precision
+        self._eps = eps
         self._W_0 = W_0
         self._W = None
+        self._reward_fn = reward_fn
+        self._max_iter = max_iter
 
 
     def solve(self):
         W = self._W_0
         D = self._D
 
-        while norm(W - W_old, 2) > self._epsilon:
+
+        t = 0
+
+        while True:
+            t+=1
+            print("lspi iter count ", t)
             W_old = W
             # update D
-            W = LSTDQ(D=D,
-                     k=self._k,
-                     phi=self._phi,
-                     gamma=self._gamma,
-                     epsilon=self._epsilon,
-                     W=W)
-            #D = self._collect_D(D, W)
+            lstd_q = LSTDQ(p=self._p,
+                           phi=self._phi,
+                           gamma=self._gamma,
+                           eps=self._eps,
+                           reward_fn=self._reward_fn)
+            pi = LinearQ2(action_list=self._action_list,
+                          W=W_old,
+                          phi=self._phi)
+            W = lstd_q.fit(D=self._D, pi=pi)
+            logging.debug("lspi W {}".format(W))
+            logging.debug("lspi W old {}".format(W_old))
+            logging.info("lspi norm {}".format(norm(W - W_old, 2)))
+            if norm(W - W_old, 2) < self._precision:
+                break
         # save
         self._W = W
         return W

@@ -200,25 +200,25 @@ class LinearQ(nn.Module):
         argmax_a Q(s, a)
         """
         Q_hat = np.array([self.forward(self._phi(s, a)) for a in range(n_actions)])
-        ties = np.flatnonzero(Q_hat = Q_hat.max())
+        ties = np.flatnonzero(Q_hat == Q_hat.max())
         return np.random.choice(ties)
 
 
-
 class LinearQ2(object):
-    """Docstring for LinearQ. """
+    """LinearQ for continuous-state, discrete_action """
 
-    def __init__(self, phi, W):
+    def __init__(self, action_list, phi, W):
         """TODO: to be defined1.
 
         Parameters
         ----------
+        action_list : list of valid actions (assuming discrete)
         phi : basis function of (s, a)
-        W : TODO, optional
         W : TODO, optional
 
 
         """
+        self._action_list = action_list
         self._phi = phi
         self._W = W
 
@@ -238,15 +238,18 @@ class LinearQ2(object):
 
         """
         if a is None:
-            return self._W.T.dot(self._phi(s))
+            q_list = []
+            for a in self._action_list:
+                q = self._W.T.dot(self._phi(s, a).T)
+                q_list.append(q)
+            return np.array(q_list)
         else:
             return self._W.T.dot(self._phi(s, a))
 
 
     def choose_action(self, s):
         Q_hat = self.predict(s)
-        ties = np.flatnonzero(Q_hat = Q_hat.max())
+        ties = np.flatnonzero(Q_hat == Q_hat.max())
         return np.random.choice(ties)
-
 
 
