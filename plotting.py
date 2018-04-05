@@ -25,8 +25,8 @@ def plot_cost_to_go_mountain_car(env, estimator, num_tiles=20):
     #ax.set_title("Mountain \"Cost To Go\" Function")
     ax.set_title("Mountain Value Function")
     fig.colorbar(surf)
+    fig.savefig("data/mc_value_fn_{}.png".format(t()), ppi=300, bbox_inches='tight')
     plt.show()
-    fig.savefig("data/mc_value_fn_{}".format(t()), ppi=300, bbox_inches='tight')
 
 def plot_value_function(V, title="Value Function"):
     """
@@ -69,12 +69,11 @@ def plot_episode_stats(stats, smoothing_window=10, noshow=False):
     plt.xlabel("Episode")
     plt.ylabel("Episode Length")
     plt.title("Episode Length over Time")
+    fig1.savefig("data/episode_len_{}.png".format(t()), ppi=300, bbox_inches='tight')
     if noshow:
         plt.close(fig1)
     else:
         plt.show(fig1)
-        plt.show(fig2)
-    fig.savefig("data/episode_len_{}".format(t()), ppi=300, bbox_inches='tight')
 
     # Plot the episode reward over time
     fig2 = plt.figure(figsize=(10,5))
@@ -83,11 +82,11 @@ def plot_episode_stats(stats, smoothing_window=10, noshow=False):
     plt.xlabel("Episode")
     plt.ylabel("Episode Reward (Smoothed)")
     plt.title("Episode Reward over Time (Smoothed over window size {})".format(smoothing_window))
+    fig2.savefig("data/episode_reward_{}.png".format(t()), ppi=300, bbox_inches='tight')
     if noshow:
         plt.close(fig2)
     else:
         plt.show(fig2)
-    fig.savefig("data/aepisode_reward_{}".format(t()), ppi=300, bbox_inches='tight')
 
     # Plot time steps and episode number
     fig3 = plt.figure(figsize=(10,5))
@@ -95,10 +94,10 @@ def plot_episode_stats(stats, smoothing_window=10, noshow=False):
     plt.xlabel("Time Steps")
     plt.ylabel("Episode")
     plt.title("Episode per time step")
+    fig3.savefig("data/episode_t_epi_{}.png".format(t()), ppi=300, bbox_inches='tight')
     if noshow:
         plt.close(fig3)
     else:
         plt.show(fig3)
-    fig.savefig("data/episode_t_epi_{}".format(t()), ppi=300, bbox_inches='tight')
 
     return fig1, fig2, fig3
