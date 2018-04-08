@@ -7,10 +7,15 @@ sns.set(style='white', palette='Blues')
 
 import numpy as np
 import pandas as pd
+import os
 from collections import namedtuple
 from mpl_toolkits.mplot3d import Axes3D
 
 from time import time as t
+
+notebook_path = os.path.dirname(os.path.realpath(__file__))
+root_path = os.path.abspath(os.path.join(notebook_path, os.pardir))
+
 EpisodeStats = namedtuple("Stats",["episode_lengths", "episode_rewards"])
 
 
@@ -31,7 +36,7 @@ def plot_cost_to_go_mountain_car(env, estimator, num_tiles=20):
     #ax.set_title("Mountain \"Cost To Go\" Function")
     ax.set_title("Mountain Value Function")
     fig.colorbar(surf)
-    fig.savefig("data/mc_value_fn_{}.png".format(t()), ppi=300, bbox_inches='tight')
+    fig.savefig("{}/data/mc_value_fn_{}.png".format(root_path, t()), ppi=300, bbox_inches='tight')
     plt.show()
 
 def plot_value_function(V, title="Value Function"):
@@ -75,7 +80,7 @@ def plot_episode_stats(stats, smoothing_window=10, noshow=False):
     plt.xlabel("Episode")
     plt.ylabel("Episode Length")
     plt.title("Episode Length over Time")
-    fig1.savefig("data/episode_len_{}.png".format(t()), ppi=300, bbox_inches='tight')
+    fig1.savefig("{}/data/episode_len_{}.png".format(root_path, t()), ppi=300, bbox_inches='tight')
     if noshow:
         plt.close(fig1)
     else:
@@ -88,7 +93,7 @@ def plot_episode_stats(stats, smoothing_window=10, noshow=False):
     plt.xlabel("Episode")
     plt.ylabel("Episode Reward (Smoothed)")
     plt.title("Episode Reward over Time (Smoothed over window size {})".format(smoothing_window))
-    fig2.savefig("data/episode_reward_{}.png".format(t()), ppi=300, bbox_inches='tight')
+    fig2.savefig("{}/data/episode_reward_{}.png".format(root_path, t()), ppi=300, bbox_inches='tight')
     if noshow:
         plt.close(fig2)
     else:
@@ -100,7 +105,7 @@ def plot_episode_stats(stats, smoothing_window=10, noshow=False):
     plt.xlabel("Time Steps")
     plt.ylabel("Episode")
     plt.title("Episode per time step")
-    fig3.savefig("data/episode_t_epi_{}.png".format(t()), ppi=300, bbox_inches='tight')
+    fig3.savefig("{}/data/episode_t_epi_{}.png".format(root_path, t()), ppi=300, bbox_inches='tight')
     if noshow:
         plt.close(fig3)
     else:

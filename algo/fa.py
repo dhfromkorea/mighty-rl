@@ -6,28 +6,61 @@ import sys
 import sklearn.pipeline
 import sklearn.preprocessing
 
-import plotting
+from util import plotting
 from sklearn.linear_model import SGDRegressor
 from sklearn.kernel_approximation import RBFSampler
+from util.basis import RBFKernel
 
 
 class Estimator():
+    """
+    Value Function approximator.
+    """
+    def __init__(self, env, phi):
+        self._env = env
+        self._phi = RBFKernel(env, n_component=25).transform
+
+        self.models = []
+        for _ in range(env.action_space.n):
+            model = SGDRegressor(learning_rate="constant")
+            model.partial_fit([self._phi(env.reset(), 0)], [0])
+            self.models.append(model)
+
+
+
+    def predict(self, s, a=None):
+        if a is None:
+            Q = []
+            for m, a in zip(self.models, range(self._env.action_space.n)):
+                features = self._phi(s, a)
+                Q.append(m.predict([features])[0])
+            return np.array(Q)
+        else:
+            features = self._phi(s, a)
+            return self.models[a].predict([features])[0]
+
+
+    def update(self, s, a, y):
+        """
+        Updates the estimator parameters for a given state and action towards
+        the target y.
+        """
+        features = self._phi(s, a)
+        self.models[a].partial_fit([features], [y])
+
+
+
+class Estimator2():
     """
     Q approximator.
     """
 
     def __init__(self, env, phi, action_list):
-        # We create a separate model for each action in the environment's
-        # action space. Alternatively we could somehow encode the action
-        # into the features, but this way it's easier to code up.
         self._phi = phi
         self._action_list = action_list
         self.models = []
         for _ in self._action_list:
             model = SGDRegressor(learning_rate="constant")
-            # We need to call partial_fit once to initialize the model
-            # or we get a NotFittedError when trying to make a prediction
-            # This is quite hacky.
             model.partial_fit([phi(env.reset(), 0).flatten()], [0])
             self.models.append(model)
 
@@ -51,7 +84,7 @@ class Estimator():
         self.models[a].partial_fit([features], [y])
 
 
-
+# try swapping
 def q_learning(env, estimator, num_episodes, gamma=1.0, epsilon=0.1, epsilon_decay=1.0):
     """
     Q-Learning algorithm for fff-policy TD control using Function Approximation.
@@ -158,7 +191,7 @@ def make_epsilon_greedy_policy(estimator, epsilon, nA):
 class LinearQ3(object):
     """Docstring for LinearQ3. """
 
-    def __init__(self, env, phi, action_list, n_episode, epsilon, gamma):
+    def __init__(self, env, phi, action_list, n_episode, epsilon, epsilon_decay, gamma):
         """TODO: to be defined1.
 
         Parameters
@@ -168,28 +201,28 @@ class LinearQ3(object):
         action_list : list
         n_episode : TODO
         epsilon : TODO
+        epsilon : TODO
         plotting : TODO
         gamma: float
             discount factor
 
         """
         self._env = env
-        self._estimator = Estimator(env=env, phi=phi, action_list=action_list)
+        #self._estimator = Estimator2(env=env, phi=phi, action_list=action_list)
+        self._estimator = Estimator(env=env, phi=phi)
         self._n_episode = n_episode
         self._epsilon = epsilon
-        self._epsilon_decay = 1.0
+        self._epsilon_decay = epsilon_decay
         self._gamma = gamma
 
 
-    def solve(self, reward_fn):
+    def solve(self, reward_fn=None):
         """TODO: Docstring for solve.
 
         Parameters
         ----------
         reward_fn : function
             reward function for IRL
-        epi_i_irl : int
-            episode index of IRL
 
         Returns
         -------
@@ -209,19 +242,21 @@ class LinearQ3(object):
             pi = EpsilonGreedyPolicy(estimator=self._estimator,
                                      eps=self._epsilon * self._epsilon_decay**i_episode,
                                      nA=self._env.action_space.n)
+
+            #pi = make_epsilon_greedy_policy(
+            #    self._estimator, self._epsilon * self._epsilon_decay**i_episode, self._env.action_space.n)
+
             last_reward = stats.episode_rewards[i_episode - 1]
             sys.stdout.flush()
 
             state = self._env.reset()
 
-            next_action = None
-
             for t in itertools.count():
 
-                if next_action is None:
-                    action = pi.choose_action(state)
-                else:
-                    action = next_action
+
+                action = pi.choose_action(state)
+                #action_probs = pi(state)
+                #action = np.random.choice(np.arange(len(action_probs)), p=action_probs)
 
                 next_state, reward, done, _ = self._env.step(action)
 
@@ -232,10 +267,15 @@ class LinearQ3(object):
 
                 # td update
                 # td_target = reward + gamma * np.max(q_values_next)
-                reward_irl = np.asscalar(reward_fn(state, action))
-                td_target = reward_irl + self._gamma * np.max(q_values_next)
+                if reward_fn is not None:
+                    reward_irl = np.asscalar(reward_fn(state, action))
+                    td_target = reward_irl + self._gamma * np.max(q_values_next)
+                else:
+                    td_target = reward + self._gamma * np.max(q_values_next)
+
 
                 self._estimator.update(state, action, td_target)
+
 
                 print("\rStep {} @ Episode {}/{} ({})".format(t, i_episode + 1, self._n_episode, last_reward), end="")
 

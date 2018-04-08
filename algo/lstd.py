@@ -5,7 +5,7 @@ import itertools
 import sys
 
 import numpy as np
-from numpy.linalg import inv, norm, cond
+from numpy.linalg import inv, norm, cond, solve
 import logging
 from algo.policy import LinearQ2
 
@@ -76,7 +76,6 @@ class LSTDQ(object):
             r = np.vstack(self._D[:, 2])
             logging.debug("original reward: {}".format(r))
 
-
         phi = self._phi(s, a)
         phi_next = self._phi(s_next, a_next)
         phi_delta = phi - self._gamma * phi_next
@@ -90,8 +89,8 @@ class LSTDQ(object):
 
         A_hat += self._eps * np.identity(self._p)
         # W_hat: p x p (1 x p)^T = p x 1
-        W_hat = inv(A_hat).dot(b_hat.T)
-
+        #W_hat = inv(A_hat).dot(b_hat.T)
+        W_hat = solve(A_hat, b_hat.T)
         self._W_hat = W_hat
         return W_hat
 
@@ -183,7 +182,8 @@ class LSTDMu(LSTDQ):
         b_hat = psi.T.dot(self._phi(s, a))
         A_hat += self._eps * np.identity(self._q)
         # xi_hat: q x p matrix
-        xi_hat = inv(A_hat).dot(b_hat)
+        #xi_hat = inv(A_hat).dot(b_hat)
+        xi_hat = solve(A_hat, b_hat)
         self._xi_hat = xi_hat
         return xi_hat
 
