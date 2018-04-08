@@ -15,6 +15,7 @@ from lstd import LSTDQ, LSTDMu, LSPI
 from envs.simulator import Simulator
 from policy import *
 from utils import *
+from util.basis import *
 from irl.apprenticeship_learning import BatchApprenticeshipLearning as BAL
 from fa import LinearQ3
 import plotting
@@ -65,9 +66,6 @@ def get_behavior_policies(only_expert=False):
     return pi_list
 
 
-def get_random_policy():
-    return RandomPolicy2(choices=[0, 1, 2]) # left, stay, right
-
 
 def get_training_data(env, pi_list, sample_size, mix_ratio):
     state_dim = env.observation_space.shape[0]
@@ -101,21 +99,6 @@ def estimate_mu_mc(env, pi, phi, gamma, n_episode):
                 break
         mus.append(mu)
     return np.array(mus)
-
-
-def get_basis_function(env_id):
-    env = gym.envs.make(env_id)
-    # Feature Preprocessing: Normalize to zero mean and unit variance
-    # We use a few samples from the observation space to do this
-    states = np.array([env.observation_space.sample() for x in range(10000)])
-    actions = np.array([env.action_space.sample() for x in range(10000)]).reshape(10000, 1)
-    xs = np.hstack((states, actions))
-
-    scaler = sklearn.preprocessing.StandardScaler()
-    scaler.fit(xs)
-
-    phi_rbf = get_phi(scaler, scaler.transform(xs))
-    return phi_rbf
 
 
 def main():
@@ -167,7 +150,7 @@ def main():
 
     logging.info("collect a batch of data (D) from pi_expert (and some noise)")
     pi_exp = NearExpertPolicy()
-    pi_random = get_random_policy()
+    pi_random = RandomPolicy2(choices=[0, 1, 2])
     pi_behavior_list = [pi_exp]
     #mix_ratio = [0.8, 0.2]
     mix_ratio = [1.0]

@@ -19,7 +19,7 @@ from irl.apprenticeship_learning import ApprenticeshipLearning as AL
 from fa import LinearQ3, Estimator
 import plotting
 from envs.simulator import Simulator
-
+from logger import *
 
 class NearExpertPolicy():
     """
@@ -30,25 +30,6 @@ class NearExpertPolicy():
         pos, v = s
         return 0 if v <=0 else 2
 
-
-def setup_logging(
-    default_path='logging.json',
-    default_level=logging.INFO,
-    env_key='LOG_CFG'
-):
-    """Setup logging configuration
-
-    """
-    path = default_path
-    value = os.getenv(env_key, None)
-    if value:
-        path = value
-    if os.path.exists(path):
-        with open(path, 'rt') as f:
-            config = json.load(f)
-        logging.config.dictConfig(config)
-    else:
-        logging.basicConfig(level=default_level)
 
 def get_behavior_policies(only_expert=False):
     pi_list = []
@@ -169,7 +150,7 @@ def main():
 
     # preprocessing D in numpy array for k
     logging.info("apprenticeship learning starts")
-    logging.info("feature dim:\n{}".format(phi))
+    logging.info("feature dim:\n{}".format(p_rbf))
 
     mu_exp = AL.estimate_mu(env=env,
                             pi_eval=pi_exp,
