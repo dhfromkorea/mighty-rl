@@ -68,15 +68,24 @@ class Simulator(object):
                     stats.episode_rewards[epi_i] += r
                     stats.episode_lengths[epi_i] = t
 
+
                     logging.debug("s {} a {} s_next {} r {} done {}".format(s, a, r, s_next, done))
                     transition = T(s=s, a=a, r=r, s_next=s_next, done=done)
                     traj.append(transition)
 
-                    s = s_next
-
                     if done:
                         logging.debug("done after {} steps".format(t))
+                        if t < 190:
+                            transition = T(s=s_next, a=0, r=100, s_next=s_next, done=done)
+                            traj.append(transition)
+                            transition = T(s=s_next, a=1, r=100, s_next=s_next, done=done)
+                            traj.append(transition)
+                            transition = T(s=s_next, a=2, r=100, s_next=s_next, done=done)
+                            traj.append(transition)
                         break
+
+                    s = s_next
+
 
                     print("\rStep {} @ Episode {}/{} ({})".format(t, epi_i + 1, n_episode, last_reward), end="")
 

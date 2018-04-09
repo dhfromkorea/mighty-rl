@@ -39,6 +39,7 @@ def plot_cost_to_go_mountain_car(env, estimator, num_tiles=20):
     fig.savefig("{}/data/mc_value_fn_{}.png".format(root_path, t()), ppi=300, bbox_inches='tight')
     plt.show()
 
+
 def plot_value_function(V, title="Value Function"):
     """
     Plots the value function as a surface plot.

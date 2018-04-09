@@ -18,14 +18,14 @@ class RBFKernel(object):
 
         """
         states = np.array([env.observation_space.sample() for x in range(10000)])
-        #actions = np.array([env.action_space.sample() for x in range(10000)]).reshape(10000, 1)
-        #xs = np.hstack((states, actions))
+        actions = np.array([env.action_space.sample() for x in range(10000)]).reshape(10000, 1)
+        xs = np.hstack((states, actions))
 
         scaler = sklearn.preprocessing.StandardScaler()
-        scaler.fit(states)
+        scaler.fit(xs)
         self._scaler = scaler
         self._n_component = n_component
-        self._phi = self.fit(scaler.transform(states))
+        self._phi = self.fit(scaler.transform(xs))
 
 
     def fit(self, scaled):
@@ -41,18 +41,21 @@ class RBFKernel(object):
 
     def transform(self, s, a):
         """"""
-    #    sa = np.hstack((s, a))
-    #    if len(sa.shape) == 1:
-    #        sa = np.expand_dims(sa, axis=0)
-    #    x = self._scaler.transform(sa)
-        if len(s.shape) == 1:
-            s = np.expand_dims(s, axis=0)
-        x = self._scaler.transform(s)
+        sa = np.hstack((s, a))
+        if len(sa.shape) == 1:
+            sa = np.expand_dims(sa, axis=0)
+        x = self._scaler.transform(sa)
         featurized = self._phi.transform(x)
+        ones = np.ones((featurized.shape[0], 1))
+        return np.hstack((featurized, ones))
+
         # @hack: hardcode action to be zero to ignore actions
-        # for mountaincar-v0, basis features only on state is enough
-        a = 0
-        return np.hstack((featurized[0], a))
+        #if len(s.shape) == 1:
+        #    s = np.expand_dims(s, axis=0)
+        #x = self._scaler.transform(s)
+        #featurized = self._phi.transform(x)
+        #a = np.zeros((featurized.shape[0], 1))
+        #return np.hstack((featurized))
 
 
 def get_rbf_basis(env, n_component=25):

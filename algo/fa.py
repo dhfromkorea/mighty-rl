@@ -23,7 +23,7 @@ class Estimator():
         # building a condition model
         for _ in range(env.action_space.n):
             model = SGDRegressor(learning_rate="constant")
-            model.partial_fit([self._phi(env.reset(), 0)], [0])
+            model.partial_fit(self._phi(env.reset(), 0), [0])
             self.models.append(model)
 
 
@@ -33,11 +33,11 @@ class Estimator():
             Q = []
             for m, a in zip(self.models, range(self._env.action_space.n)):
                 features = self._phi(s, a)
-                Q.append(m.predict([features])[0])
+                Q.append(m.predict(features)[0])
             return np.array(Q)
         else:
             features = self._phi(s, a)
-            return self.models[a].predict([features])[0]
+            return self.models[a].predict(features)[0]
 
 
     def update(self, s, a, y):
@@ -46,7 +46,7 @@ class Estimator():
         the target y.
         """
         features = self._phi(s, a)
-        self.models[a].partial_fit([features], [y])
+        self.models[a].partial_fit(features, [y])
 
 
 # @todo: fix this

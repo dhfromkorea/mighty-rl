@@ -8,6 +8,7 @@ import numpy as np
 from numpy.linalg import inv, norm, cond, solve
 import logging
 from algo.policy import LinearQ2
+import scipy.sparse.linalg as spla
 
 
 class LSTDQ(object):
@@ -65,12 +66,7 @@ class LSTDQ(object):
         logging.info("fitting D of the dimension:\n{}".format(D.shape))
 
         if self._reward_fn is not None:
-            # postprocess reward for IRL
-            #r = np.vstack([-1 for s, a in zip(s, a)])
             r = np.vstack([self._reward_fn(s,a) for s, a in zip(s, a)])
-            #r = np.vstack([np.min([self._reward_fn(s,a), -0.001]) for s, a in zip(s, a)])
-            #r = np.vstack([-100 for s, a in zip(s, a)])
-            #r = np.vstack([np.random.choice([-1, 1]) for s, a in zip(s, a)])
             logging.debug("modified reward: {}".format(r))
         else:
             r = np.vstack(self._D[:, 2])
@@ -79,17 +75,71 @@ class LSTDQ(object):
         phi = self._phi(s, a)
         phi_next = self._phi(s_next, a_next)
         phi_delta = phi - self._gamma * phi_next
-
-        # A_hat: p x p matrix
-        A_hat = phi.T.dot(phi_delta)
-        # b_hat: 1 x p matrix
-        b_hat = r.T.dot(phi)
-        logging.info("A_hat\n{}".format(A_hat))
-        logging.info("condition number of A_hat\n{}".format(cond(A_hat)))
+        try:
+            # A_hat: p x p matrix
+            A_hat = phi.T.dot(phi_delta)
+            # b_hat: 1 x p matrix
+            b_hat = r.T.dot(phi)
+        except:
+            import pdb;pdb.set_trace()
+        #logging.info("A_hat\n{}".format(A_hat))
+        #logging.info("condition number of A_hat\n{}".format(cond(A_hat)))
 
         A_hat += self._eps * np.identity(self._p)
+
         # W_hat: p x p (1 x p)^T = p x 1
+        print("hai ho")
+        W_hat = spla.spsolve(A_hat, b_hat.T)
         #W_hat = inv(A_hat).dot(b_hat.T)
+        print("cond a_hat {}".format(cond(A_hat)))
+        #W_hat = solve(A_hat, b_hat.T)
+        self._W_hat = W_hat
+        return W_hat
+
+
+    def fit2(self, D, pi):
+        """TODO: Docstring for learn.
+
+        assuminng action-value function Q(s,a)
+        is linearly parametrized by W
+        such that Q = W^T phi(s)
+
+        Parameters
+        ----------
+
+        Returns
+        -------
+        TODO
+        this is LSTD_Q
+        check dimensionality of everything
+
+        """
+
+        self._D = D
+
+        A_hat = np.zeros((self._p, self._p))
+        b_hat = np.zeros((1, self._p))
+
+        for (s, a, r, s_next, _) in self._D:
+            phi = self._phi(s, a)
+            print("phi", phi)
+
+            # policy to evaluate
+            a_next = pi.choose_action(s_next)
+            phi_delta = phi - self._gamma * self._phi(s_next, a_next)
+            A_hat += phi.dot(phi_delta.T)
+
+            # just use reward?
+            if self._reward_fn is not None:
+                logging.debug("original reward: {}".format(r))
+                r = self._reward_fn(s, a)
+                logging.debug("modified reward: {}".format(r))
+            b_hat += phi.dot(r)
+
+        # make A almost always invertible
+        # unless eps is A's eigenvalue
+        A_hat += self._eps * np.identity(self._p)
+        print("cond a_hat {}".format(cond(A_hat)))
         W_hat = solve(A_hat, b_hat.T)
         self._W_hat = W_hat
         return W_hat
@@ -210,7 +260,7 @@ class LSTDMu(LSTDQ):
 
 class LSPI(object):
     """Docstring for LSPI. """
-    def __init__(self, D, action_list, p, phi, gamma, precision, eps, W_0, reward_fn, max_iter=50):
+    def __init__(self, D, action_list, p, phi, gamma, precision, eps, W_0, reward_fn, max_iter=10):
         """TODO: to be defined1.
 
         Parameters
@@ -247,7 +297,6 @@ class LSPI(object):
         D = self._D
 
 
-
         for t in itertools.count():
             sys.stdout.flush()
             W_old = W
@@ -257,14 +306,20 @@ class LSPI(object):
                            gamma=self._gamma,
                            eps=self._eps,
                            reward_fn=self._reward_fn)
+
             pi = LinearQ2(action_list=self._action_list,
                           W=W_old,
                           phi=self._phi)
             W = lstd_q.fit(D=self._D, pi=pi)
             logging.debug("lspi W {}".format(W))
+            #print("W", W)
             logging.debug("lspi W old {}".format(W_old))
+            #print("W_old", W_old)
             logging.info("lspi norm {}".format(norm(W - W_old, 2)))
+            #print("norm", norm(W - W_old, 2))
             print("\rStep {} @ norm {}".format(t, norm(W - W_old, 2)), end="")
+            if t > max_iter:
+				break
             if norm(W - W_old, 2) < self._precision:
                 break
         # save
