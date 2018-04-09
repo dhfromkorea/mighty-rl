@@ -9,7 +9,6 @@ import sklearn.preprocessing
 from util import plotting
 from sklearn.linear_model import SGDRegressor
 from sklearn.kernel_approximation import RBFSampler
-from util.basis import RBFKernel
 
 
 class Estimator():
@@ -18,9 +17,10 @@ class Estimator():
     """
     def __init__(self, env, phi):
         self._env = env
-        self._phi = RBFKernel(env, n_component=25).transform
+        self._phi = phi
 
         self.models = []
+        # building a condition model
         for _ in range(env.action_space.n):
             model = SGDRegressor(learning_rate="constant")
             model.partial_fit([self._phi(env.reset(), 0)], [0])
@@ -49,100 +49,6 @@ class Estimator():
         self.models[a].partial_fit([features], [y])
 
 
-
-class Estimator2():
-    """
-    Q approximator.
-    """
-
-    def __init__(self, env, phi, action_list):
-        self._phi = phi
-        self._action_list = action_list
-        self.models = []
-        for _ in self._action_list:
-            model = SGDRegressor(learning_rate="constant")
-            model.partial_fit([phi(env.reset(), 0).flatten()], [0])
-            self.models.append(model)
-
-
-    def predict(self, s, a=None):
-        """
-        Q
-        """
-        if a is None:
-            Q = []
-            for m, a in zip(self.models, self._action_list):
-                features = self._phi(s, a).flatten()
-                Q.append(m.predict([features])[0])
-            return np.array(Q)
-        else:
-            features = self._phi(s, a).flatten()
-            return self.models[a].predict([features])[0]
-
-    def update(self, s, a, y):
-        features = self._phi(s, a).flatten()
-        self.models[a].partial_fit([features], [y])
-
-
-# try swapping
-def q_learning(env, estimator, num_episodes, gamma=1.0, epsilon=0.1, epsilon_decay=1.0):
-    """
-    Q-Learning algorithm for fff-policy TD control using Function Approximation.
-    Finds the optimal greedy policy while following an epsilon-greedy policy.
-
-    Args:
-        env: OpenAI environment.
-        estimator: Action-Value function estimator
-        num_episodes: Number of episodes to run for.
-        gamma: Gamma discount factor.
-        epsilon: Chance the sample a random action. Float betwen 0 and 1.
-        epsilon_decay: Each episode, epsilon is decayed by this factor
-
-    Returns:
-        An EpisodeStats object with two numpy arrays for episode_lengths and episode_rewards.
-    """
-
-    stats = plotting.EpisodeStats(
-        episode_lengths=np.zeros(num_episodes),
-        episode_rewards=np.zeros(num_episodes))
-
-    for i_episode in range(num_episodes):
-
-        policy = make_epsilon_greedy_policy(
-            estimator, epsilon * epsilon_decay**i_episode, env.action_space.n)
-
-        last_reward = stats.episode_rewards[i_episode - 1]
-        sys.stdout.flush()
-
-        state = env.reset()
-
-        next_action = None
-
-        for t in itertools.count():
-            action_probs = policy(state)
-            action = np.random.choice(np.arange(len(action_probs)), p=action_probs)
-
-            next_state, reward, done, _ = env.step(action)
-
-            stats.episode_rewards[i_episode] += reward
-            stats.episode_lengths[i_episode] = t
-
-            q_values_next = estimator.predict(next_state)
-
-            td_target = reward + gamma * np.max(q_values_next)
-
-            estimator.update(state, action, td_target)
-
-            print("\rStep {} @ Episode {}/{} ({})".format(t, i_episode + 1, num_episodes, last_reward), end="")
-
-            if done:
-                break
-
-            state = next_state
-
-    return stats
-
-
 # @todo: fix this
 class EpsilonGreedyPolicy(object):
     def __init__(self, estimator, eps, nA):
@@ -163,29 +69,22 @@ class EpsilonGreedyPolicy(object):
         a = np.random.choice(np.arange(len(p)), p=p)
         return a
 
+    @property
+    def coef_(self):
+        """TODO: Docstring for function.
 
-# @todo: make this included
-def make_epsilon_greedy_policy(estimator, epsilon, nA):
-    """
-    Creates an epsilon-greedy policy based on a given Q-function approximator and epsilon.
+        Parameters
+        ----------
 
-    Args:
-        estimator: An estimator that returns q values for a given state
-        epsilon: The probability to select a random action . float between 0 and 1.
-        nA: Number of actions in the environment.
+        Returns
+        -------
+        coef : array
+            dim_action by dim_feature array
 
-    Returns:
-        A function that takes the observation as an argument and returns
-        the probabilities for each action in the form of a numpy array of length nA.
+        """
+        # @todo: perhaps consider using one model for all actions
+        return np.array([np.hstack((m.coef_, m.intercept_)) for m in self._estimator.models])
 
-    """
-    def policy_fn(observation):
-        A = np.ones(nA, dtype=float) * epsilon / nA
-        q_values = estimator.predict(observation)
-        best_action = np.argmax(q_values)
-        A[best_action] += (1.0 - epsilon)
-        return A
-    return policy_fn
 
 
 class LinearQ3(object):
@@ -208,7 +107,6 @@ class LinearQ3(object):
 
         """
         self._env = env
-        #self._estimator = Estimator2(env=env, phi=phi, action_list=action_list)
         self._estimator = Estimator(env=env, phi=phi)
         self._n_episode = n_episode
         self._epsilon = epsilon
@@ -229,9 +127,6 @@ class LinearQ3(object):
         TODO
 
         """
-        # @todo: hacky for copmutational reasons
-        #n_episode = self._n_episode
-
         # Keeps track of useful statistics
         stats = plotting.EpisodeStats(
             episode_lengths=np.zeros(self._n_episode),
@@ -243,8 +138,6 @@ class LinearQ3(object):
                                      eps=self._epsilon * self._epsilon_decay**i_episode,
                                      nA=self._env.action_space.n)
 
-            #pi = make_epsilon_greedy_policy(
-            #    self._estimator, self._epsilon * self._epsilon_decay**i_episode, self._env.action_space.n)
 
             last_reward = stats.episode_rewards[i_episode - 1]
             sys.stdout.flush()
@@ -255,8 +148,6 @@ class LinearQ3(object):
 
 
                 action = pi.choose_action(state)
-                #action_probs = pi(state)
-                #action = np.random.choice(np.arange(len(action_probs)), p=action_probs)
 
                 next_state, reward, done, _ = self._env.step(action)
 
@@ -265,8 +156,6 @@ class LinearQ3(object):
 
                 q_values_next = self._estimator.predict(next_state)
 
-                # td update
-                # td_target = reward + gamma * np.max(q_values_next)
                 if reward_fn is not None:
                     reward_irl = np.asscalar(reward_fn(state, action))
                     td_target = reward_irl + self._gamma * np.max(q_values_next)

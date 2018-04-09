@@ -44,7 +44,7 @@ action_list = range(env.action_space.n)
 mdp_solver = LinearQ3(env=env,
                       phi=phi_rbf,
                       action_list=action_list,
-                      n_episode=100,
+                      n_episode=60,
                       epsilon=0.0,
                       epsilon_decay=1.0,
                       gamma=gamma)
@@ -52,3 +52,6 @@ mdp_solver = LinearQ3(env=env,
 pi_expert, stats = mdp_solver.solve()
 #plotting.plot_cost_to_go_mountain_car(env, pi_expert._estimator)
 plotting.plot_episode_stats(stats, smoothing_window=10)
+
+import pdb;pdb.set_trace()
+pi_expert.coef
