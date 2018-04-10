@@ -20,12 +20,12 @@ class Estimator():
         self._phi = phi
 
         self.models = []
-        # building a condition model
+        # building a conditional model
+        # @hack
         for _ in range(env.action_space.n):
             model = SGDRegressor(learning_rate="constant")
             model.partial_fit(self._phi(env.reset(), 0), [0])
             self.models.append(model)
-
 
 
     def predict(self, s, a=None):
