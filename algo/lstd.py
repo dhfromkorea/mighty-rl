@@ -5,7 +5,7 @@ import itertools
 import sys
 
 import numpy as np
-from numpy.linalg import inv, norm, cond, solve
+from numpy.linalg import inv, norm, cond, solve, matrix_rank, lstsq
 import logging
 from algo.policy import LinearQ2
 import scipy.sparse.linalg as spla
@@ -36,7 +36,7 @@ class LSTDQ(object):
         self._W_hat = None
 
 
-    def fit(self, D, pi):
+    def fit(self, s, a, r, s_next, a_next, pi):
         """TODO: Docstring for learn.
 
         assuminng action-value function Q(s,a)
@@ -54,51 +54,38 @@ class LSTDQ(object):
 
         """
 
-        self._D = D
         A_hat = np.zeros((self._p, self._p))
-        b_hat = np.zeros((1, self._p))
-        # perhaps can be done in one step?
-        s = np.vstack(self._D[:, 0])
-        s_next = np.vstack(self._D[:, 3])
-        a = np.vstack(self._D[:, 1])
-        a_next = np.vstack(np.apply_along_axis(pi.choose_action, 1, s_next))
-
-        logging.info("fitting D of the dimension:\n{}".format(D.shape))
-
-        if self._reward_fn is not None:
-            r = np.vstack([self._reward_fn(s,a) for s, a in zip(s, a)])
-            logging.debug("modified reward: {}".format(r))
-        else:
-            r = np.vstack(self._D[:, 2])
-            logging.debug("original reward: {}".format(r))
+        A_hat += self._eps * np.identity(self._p)
+        b_hat = np.zeros((self._p, 1))
 
         phi = self._phi(s, a)
         phi_next = self._phi(s_next, a_next)
         phi_delta = phi - self._gamma * phi_next
-        try:
-            # A_hat: p x p matrix
-            A_hat = phi.T.dot(phi_delta)
-            # b_hat: 1 x p matrix
-            b_hat = r.T.dot(phi)
-        except:
-            import pdb;pdb.set_trace()
-        #logging.info("A_hat\n{}".format(A_hat))
-        #logging.info("condition number of A_hat\n{}".format(cond(A_hat)))
+        # A_hat: p x p matrix
+        A_hat = phi.T.dot(phi_delta)
+        # b_hat: p x 1 matrix
+        b_hat = phi.T.dot(r)
 
-        A_hat += self._eps * np.identity(self._p)
+        #logging.debug("A_hat\n{}".format(A_hat))
+        #logging.debug("condition number of A_hat\n{}".format(cond(A_hat)))
 
-        # W_hat: p x p (1 x p)^T = p x 1
-        print("hai ho")
-        W_hat = spla.spsolve(A_hat, b_hat.T)
+
         #W_hat = inv(A_hat).dot(b_hat.T)
-        print("cond a_hat {}".format(cond(A_hat)))
-        #W_hat = solve(A_hat, b_hat.T)
+        if matrix_rank(A_hat) == self._p:
+            # use LU decomposition
+            # requires to be full rank
+            W_hat = solve(A_hat, b_hat)
+        else:
+            import pdb;pdb.set_trace()
+            W_hat = lstsq(A_hat, b_hat)[0]
+
         self._W_hat = W_hat
         return W_hat
 
 
     def fit2(self, D, pi):
         """TODO: Docstring for learn.
+        iterative
 
         assuminng action-value function Q(s,a)
         is linearly parametrized by W
@@ -118,6 +105,8 @@ class LSTDQ(object):
         self._D = D
 
         A_hat = np.zeros((self._p, self._p))
+        # to help with invertibility of A
+        A_hat += self._eps * np.identity(self._p)
         b_hat = np.zeros((1, self._p))
 
         for (s, a, r, s_next, _) in self._D:
@@ -136,11 +125,11 @@ class LSTDQ(object):
                 logging.debug("modified reward: {}".format(r))
             b_hat += phi.dot(r)
 
-        # make A almost always invertible
-        # unless eps is A's eigenvalue
-        A_hat += self._eps * np.identity(self._p)
         print("cond a_hat {}".format(cond(A_hat)))
-        W_hat = solve(A_hat, b_hat.T)
+        if matrix_rank(A_hat) == p:
+            # use LU decomposition
+            # requires to be full rank
+            W_hat = solve(A_hat, b_hat.T)
         self._W_hat = W_hat
         return W_hat
 
@@ -295,10 +284,22 @@ class LSPI(object):
     def solve(self):
         W = self._W_0
         D = self._D
+        W_list = []
 
+        # preprocessing
+        logging.info("fitting D of the dimension:\n{}".format(D.shape))
+        s = np.vstack(self._D[:, 0])
+        s_next = np.vstack(self._D[:, 3])
+        a = np.vstack(self._D[:, 1])
+
+        if self._reward_fn is not None:
+            r = np.vstack([self._reward_fn(s,a) for s, a in zip(s, a)])
+            logging.debug("modified reward: {}".format(r))
+        else:
+            r = np.vstack(self._D[:, 2])
+            logging.debug("original reward: {}".format(r))
 
         for t in itertools.count():
-            sys.stdout.flush()
             W_old = W
             # update D
             lstd_q = LSTDQ(p=self._p,
@@ -310,22 +311,19 @@ class LSPI(object):
             pi = LinearQ2(action_list=self._action_list,
                           W=W_old,
                           phi=self._phi)
-            W = lstd_q.fit(D=self._D, pi=pi)
+
+            a_next = np.vstack(np.apply_along_axis(pi.choose_action, 1, s_next))
+            W = lstd_q.fit(s, a, r, s_next, a_next, pi=pi)
+            W_list.append(W)
             logging.debug("lspi W {}".format(W))
-            #print("W", W)
             logging.debug("lspi W old {}".format(W_old))
-            #print("W_old", W_old)
             logging.info("lspi norm {}".format(norm(W - W_old, 2)))
-            #print("norm", norm(W - W_old, 2))
-            print("\rStep {} @ norm {}".format(t, norm(W - W_old, 2)), end="")
-            if t > max_iter:
-				break
-            if norm(W - W_old, 2) < self._precision:
+            if t > self._max_iter or norm(W - W_old) < self._precision:
                 break
         # save
         self._W = W
 
-        return W
+        return W, W_list
 
 
 

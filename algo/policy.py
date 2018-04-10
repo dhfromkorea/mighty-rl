@@ -244,7 +244,6 @@ class LinearQ2(object):
                 q_list.append(q)
             return np.array(q_list)
         else:
-            import pdb;pdb.set_trace()
             return self._W.T.dot(self._phi(s, a))
 
 

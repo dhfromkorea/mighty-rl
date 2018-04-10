@@ -30,7 +30,7 @@ class Simulator(object):
         self._action_dim = action_dim
 
 
-    def simulate(self, pi, n_trial, n_episode, return_stats=False):
+    def simulate(self, pi, n_trial, n_episode, return_stats=False, reward_fn=None):
         """TODO: Docstring for simulate
 
         Parameters
@@ -65,6 +65,9 @@ class Simulator(object):
                     a = pi.choose_action(s)
                     s_next, r, done, _ = env.step(a)
 
+                    if reward_fn is not None:
+                        r = reward_fn(s)
+
                     stats.episode_rewards[epi_i] += r
                     stats.episode_lengths[epi_i] = t
 
@@ -75,13 +78,6 @@ class Simulator(object):
 
                     if done:
                         logging.debug("done after {} steps".format(t))
-                        if t < 190:
-                            transition = T(s=s_next, a=0, r=100, s_next=s_next, done=done)
-                            traj.append(transition)
-                            transition = T(s=s_next, a=1, r=100, s_next=s_next, done=done)
-                            traj.append(transition)
-                            transition = T(s=s_next, a=2, r=100, s_next=s_next, done=done)
-                            traj.append(transition)
                         break
 
                     s = s_next
