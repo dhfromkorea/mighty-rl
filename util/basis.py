@@ -40,22 +40,28 @@ class RBFKernel(object):
 
 
     def transform(self, s, a):
-        """"""
-        sa = np.hstack((s, a))
-        if len(sa.shape) == 1:
-            sa = np.expand_dims(sa, axis=0)
-        x = self._scaler.transform(sa)
-        featurized = self._phi.transform(x)
-        ones = np.ones((featurized.shape[0], 1))
-        return np.hstack((featurized, ones))
-
-        # @hack: hardcode action to be zero to ignore actions
-        #if len(s.shape) == 1:
-        #    s = np.expand_dims(s, axis=0)
-        #x = self._scaler.transform(s)
+        """
+        """
+        # giving state action
+        #sa = np.hstack((s, a))
+        #if len(sa.shape) == 1:
+        #    sa = np.expand_dims(sa, axis=0)
+        #x = self._scaler.transform(sa)
         #featurized = self._phi.transform(x)
-        #a = np.zeros((featurized.shape[0], 1))
-        #return np.hstack((featurized))
+        #return featurized
+
+        # giving state
+        if len(s.shape) == 1:
+            s = np.expand_dims(s, axis=0)
+        x = self._scaler.transform(s)
+        featurized = self._phi.transform(x)
+        return np.hstack((featurized, a))
+
+        # giving s, a, b
+        #ones = np.ones((featurized.shape[0], 1))
+        #return np.hstack((featurized, ones))
+        #ones = np.ones((featurized.shape[0], 1))
+        #return np.hstack((featurized, ones))
 
 
 def get_rbf_basis(env, n_component=25):
