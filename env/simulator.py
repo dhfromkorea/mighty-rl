@@ -6,7 +6,7 @@ import logging
 
 from util import plotting
 
-T = namedtuple("Transition", ["s", "a", "r", "s_next", "done"])
+T = namedtuple("Transition", ["s", "a", "r", "s_next", "absorb"])
 
 
 class Simulator(object):
@@ -42,6 +42,8 @@ class Simulator(object):
         D: a collection of transition samples
 
         """
+        #@todo: remove the hard-coded max iter of 200 for mountaincar
+        max_iter = 200
 
         stats = plotting.EpisodeStats(
             episode_lengths=np.zeros(n_episode),
@@ -68,12 +70,15 @@ class Simulator(object):
                     if reward_fn is not None:
                         r = reward_fn(s)
 
+                    absorb = done and t < max_iter
+
                     stats.episode_rewards[epi_i] += r
                     stats.episode_lengths[epi_i] = t
 
+                    logging.debug("s {} a {} s_next {} r {} absorb {}".format(s, a, r, s_next,
+                        absorb))
 
-                    logging.debug("s {} a {} s_next {} r {} done {}".format(s, a, r, s_next, done))
-                    transition = T(s=s, a=a, r=r, s_next=s_next, done=done)
+                    transition = T(s=s, a=a, r=r, s_next=s_next, absorb=absorb)
                     traj.append(transition)
 
                     if done:

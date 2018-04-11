@@ -36,7 +36,7 @@ class LSTDQ(object):
         self._W_hat = None
 
 
-    def fit(self, s, a, r, s_next, a_next, pi):
+    def fit(self, s, a, r, s_next, a_next, absorb, pi):
         """TODO: Docstring for learn.
 
         assuminng action-value function Q(s,a)
@@ -58,9 +58,14 @@ class LSTDQ(object):
         A_hat += self._eps * np.identity(self._p)
         b_hat = np.zeros((self._p, 1))
 
+
+        # n x p matrix
         phi = self._phi(s, a)
+        # n x p matrix
         phi_next = self._phi(s_next, a_next)
+        phi_next[absorb.flatten(), :] = 0
         phi_delta = phi - self._gamma * phi_next
+        # rows where absorb is true should be zero
         # A_hat: p x p matrix
         A_hat = phi.T.dot(phi_delta)
         # b_hat: p x 1 matrix
@@ -288,6 +293,7 @@ class LSPI(object):
         logging.info("fitting D of the dimension:\n{}".format(D.shape))
         s = np.vstack(self._D[:, 0])
         s_next = np.vstack(self._D[:, 3])
+        absorb = np.vstack(self._D[:, 4])
         a = np.vstack(self._D[:, 1])
 
         if self._reward_fn is not None:
@@ -311,7 +317,7 @@ class LSPI(object):
                           phi=self._phi)
 
             a_next = np.vstack(np.apply_along_axis(pi.choose_action, 1, s_next))
-            W = lstd_q.fit(s, a, r, s_next, a_next, pi=pi)
+            W = lstd_q.fit(s, a, r, s_next, a_next, absorb, pi=pi)
             W_list.append(W)
             logging.debug("lspi W {}".format(W))
             logging.debug("lspi W old {}".format(W_old))
