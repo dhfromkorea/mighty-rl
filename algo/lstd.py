@@ -66,17 +66,15 @@ class LSTDQ(object):
         # b_hat: p x 1 matrix
         b_hat = phi.T.dot(r)
 
-        #logging.debug("A_hat\n{}".format(A_hat))
-        #logging.debug("condition number of A_hat\n{}".format(cond(A_hat)))
 
-
-        #W_hat = inv(A_hat).dot(b_hat.T)
-        if matrix_rank(A_hat) == self._p:
+        rank = matrix_rank(A_hat)
+        if rank == self._p:
             # use LU decomposition
             # requires to be full rank
             W_hat = solve(A_hat, b_hat)
         else:
-            import pdb;pdb.set_trace()
+            logging.warning("condition number of A_hat\n{}".format(cond(A_hat)))
+            logging.warning("A_hat is not full rank {} < {}".format(rank, self._p))
             W_hat = lstsq(A_hat, b_hat)[0]
 
         self._W_hat = W_hat
