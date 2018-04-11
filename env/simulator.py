@@ -70,7 +70,8 @@ class Simulator(object):
                     if reward_fn is not None:
                         r = reward_fn(s)
 
-                    absorb = done and t < max_iter
+
+                    absorb = done and (t + 1) < max_iter
 
                     stats.episode_rewards[epi_i] += r
                     stats.episode_lengths[epi_i] = t
@@ -82,7 +83,7 @@ class Simulator(object):
                     traj.append(transition)
 
                     if done:
-                        logging.debug("done after {} steps".format(t))
+                        logging.info("done after {} steps".format(t))
                         break
 
                     s = s_next
