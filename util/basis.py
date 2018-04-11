@@ -7,7 +7,7 @@ import sklearn.preprocessing
 class RBFKernel(object):
     """Docstring for RBFKernel. """
 
-    def __init__(self, env, n_component=25, include_action=False):
+    def __init__(self, env, n_component=25, include_action_to_basis=False, include_action=False):
         """TODO: to be defined1.
 
         Parameters
@@ -18,12 +18,13 @@ class RBFKernel(object):
         states = np.array([env.observation_space.sample() for x in range(10000)])
         actions = np.array([env.action_space.sample() for x in range(10000)]).reshape(10000, 1)
         # giving state action
-        if include_action:
+        if include_action_to_basis:
             xs = np.hstack((states, actions))
         else:
             # giving state
             xs = states
         self._include_action = include_action
+        self._include_action_to_basis = include_action_to_basis
 
         scaler = sklearn.preprocessing.StandardScaler()
 
@@ -48,19 +49,25 @@ class RBFKernel(object):
         """
         """
         # giving state action
-        if self._include_action:
+        if self._include_action_to_basis:
             sa = np.hstack((s, a))
             if len(sa.shape) == 1:
                 sa = np.expand_dims(sa, axis=0)
             x = self._scaler.transform(sa)
             featurized = self._phi.transform(x)
-            return np.expand_dims(featurized, axis=0)
-        else:
+            return featurized
+        elif self._include_action:
             if len(s.shape) == 1:
                 s = np.expand_dims(s, axis=0)
             x = self._scaler.transform(s)
             featurized = self._phi.transform(x)
             return np.expand_dims(np.hstack((featurized[0], a)), axis=0)
+        else:
+            if len(s.shape) == 1:
+                s = np.expand_dims(s, axis=0)
+            x = self._scaler.transform(s)
+            featurized = self._phi.transform(x)
+            return featurized
 
         # giving s, a, b
         #ones = np.ones((featurized.shape[0], 1))
@@ -69,8 +76,8 @@ class RBFKernel(object):
         #return np.hstack((featurized, ones))
 
 
-def get_rbf_basis(env, n_component=25, include_action=False):
-    return RBFKernel(env, n_component=n_component, include_action=include_action).transform
+def get_rbf_basis(env, n_component=25, include_action_to_basis=False, include_action=False):
+    return RBFKernel(env, n_component=n_component, include_action_to_basis=include_action_to_basis, include_action=include_action).transform
 
 
 def get_linear_basis():

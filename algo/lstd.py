@@ -76,7 +76,6 @@ class LSTDQ(object):
             # requires to be full rank
             W_hat = solve(A_hat, b_hat)
         else:
-            import pdb;pdb.set_trace()
             W_hat = lstsq(A_hat, b_hat)[0]
 
         self._W_hat = W_hat

@@ -143,6 +143,7 @@ def plot_trajectory_mountain_car(D, noshow=False):
             states.append(s)
         states = np.array(states)
         sc = ax.scatter(states[:,0], states[:,1], c=range(len(states[:,0])), cmap=plt.get_cmap("YlOrRd"), s=7.0)
+    ax.set_xlim(-1.3, 0.6)
     ax.axvline(0.5, c='blue', linewidth=5)
     ax.set_xlabel('Position', fontsize=20.0)
     ax.set_ylabel('Velocity', fontsize=20.0)
