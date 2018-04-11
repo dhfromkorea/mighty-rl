@@ -83,7 +83,7 @@ class Simulator(object):
                     traj.append(transition)
 
                     if done:
-                        logging.info("done after {} steps".format(t))
+                        logging.debug("done after {} steps".format(t))
                         break
 
                     s = s_next

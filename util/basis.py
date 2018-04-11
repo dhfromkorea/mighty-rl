@@ -15,6 +15,7 @@ class RBFKernel(object):
         env : TODO
         n_component : TODO, optional
         """
+        # todo from D
         states = np.array([env.observation_space.sample() for x in range(10000)])
         actions = np.array([env.action_space.sample() for x in range(10000)]).reshape(10000, 1)
         # giving state action
@@ -36,10 +37,11 @@ class RBFKernel(object):
 
     def fit(self, scaled):
         phi = sklearn.pipeline.FeatureUnion([
-                ("rbf1", RBFSampler(gamma=5.0, n_components=self._n_component)),
-                ("rbf2", RBFSampler(gamma=2.0, n_components=self._n_component)),
-                ("rbf3", RBFSampler(gamma=1.0, n_components=self._n_component)),
-                ("rbf4", RBFSampler(gamma=0.5, n_components=self._n_component))
+                ("rbf0", RBFSampler(gamma=20.0, n_components=self._n_component)),
+                #("rbf1", RBFSampler(gamma=5.0, n_components=self._n_component)),
+                #("rbf2", RBFSampler(gamma=2.0, n_components=self._n_component)),
+                ("rbf3", RBFSampler(gamma=0.5, n_components=self._n_component)),
+                #("rbf4", RBFSampler(gamma=0.5, n_components=self._n_component))
                 ])
         phi.fit(scaled)
         return phi
