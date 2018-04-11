@@ -157,7 +157,7 @@ class LinearQ3(object):
                 q_values_next = self._estimator.predict(next_state)
 
                 if reward_fn is not None:
-                    reward_irl = np.asscalar(reward_fn(state, action))
+                    reward_irl = reward_fn(state, action)
                     td_target = reward_irl + self._gamma * np.max(q_values_next)
                 else:
                     td_target = reward + self._gamma * np.max(q_values_next)
