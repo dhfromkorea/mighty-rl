@@ -4,14 +4,12 @@ from tqdm import tqdm
 import cvxpy as cvx
 import logging
 import itertools
-
-
-from lstd import LSTDQ, LSTDMu, LSPI
-from algo.policy import LinearQ2
-
-import time
 import os
 from multiprocessing import Pool
+
+from algo.lstd import LSTDQ, LSTDMu, LSPI
+from algo.policy import LinearQ2
+
 
 class ApprenticeshipLearning(object):
     """ApprenticeshipLearning continuous state

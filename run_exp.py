@@ -11,16 +11,15 @@ import pickle
 from time import time
 
 
-from lstd import LSTDQ, LSTDMu, LSPI
-from envs.simulator import Simulator
-from policy import *
-from utils import *
-from irl.apprenticeship_learning import ApprenticeshipLearning as AL
-from fa import LinearQ3, Estimator
-import plotting
-from envs.simulator import Simulator
+from algo.lstd import LSTDQ, LSTDMu, LSPI
+from env.simulator import Simulator
+from algo.policy import *
+from util.utils import *
+from alo.apprenticeship_learning import ApprenticeshipLearning as AL
+from algo.fa import LinearQ3, Estimator
+import util.plotting
 from logger import *
-from utils.basis import *
+from util.basis import *
 
 class NearExpertPolicy():
     """
