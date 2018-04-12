@@ -86,57 +86,6 @@ class LSTDQ(object):
         return W_hat
 
 
-    def fit2(self, D, pi):
-        """TODO: Docstring for learn.
-        iterative
-
-        assuminng action-value function Q(s,a)
-        is linearly parametrized by W
-        such that Q = W^T phi(s)
-
-        Parameters
-        ----------
-
-        Returns
-        -------
-        TODO
-        this is LSTD_Q
-        check dimensionality of everything
-
-        """
-
-        self._D = D
-
-        A_hat = np.zeros((self._p, self._p))
-        # to help with invertibility of A
-        A_hat += self._eps * np.identity(self._p)
-        b_hat = np.zeros((1, self._p))
-
-        for (s, a, r, s_next, _) in self._D:
-            phi = self._phi(s, a)
-            print("phi", phi)
-
-            # policy to evaluate
-            a_next = pi.choose_action(s_next)
-            phi_delta = phi - self._gamma * self._phi(s_next, a_next)
-            A_hat += phi.dot(phi_delta.T)
-
-            # just use reward?
-            if self._reward_fn is not None:
-                logging.debug("original reward: {}".format(r))
-                r = self._reward_fn(s, a)
-                logging.debug("modified reward: {}".format(r))
-            b_hat += phi.dot(r)
-
-        print("cond a_hat {}".format(cond(A_hat)))
-        if matrix_rank(A_hat) == p:
-            # use LU decomposition
-            # requires to be full rank
-            W_hat = solve(A_hat, b_hat.T)
-        self._W_hat = W_hat
-        return W_hat
-
-
     def estimate_Q(self, s0, a0):
         """estimate Q^pi(s,a)
 
@@ -173,6 +122,7 @@ class LSTDMu(LSTDQ):
         self._q = q
         self._xi_hat = None
 
+
     def fit(self, D, pi):
         """estimate xi to compute mu
 
@@ -182,10 +132,6 @@ class LSTDMu(LSTDQ):
 
         Parameters
         ----------
-        p : int
-            dimension of phi
-        q : int
-            dimension of psi
         pi : Policy
             policy to evaluate
 
@@ -202,30 +148,41 @@ class LSTDMu(LSTDQ):
 
         """
         self._D = D
-        A_hat = np.zeros((self._q, self._q))
-        b_hat = np.zeros((self._q, self._p))
 
-        # perhaps can be done in one step?
         s = np.vstack(self._D[:, 0])
         a = np.vstack(self._D[:, 1])
         r = np.vstack(self._D[:, 2])
         s_next = np.vstack(self._D[:, 3])
-
-        psi = self._psi(s, a)
-
         a_next = np.vstack(np.apply_along_axis(pi.choose_action, 1, s_next))
-        psi_next = self._psi(s_next, a_next)
+        absorb = np.vstack(self._D[:, 4])
 
+
+        A_hat = np.zeros((self._q, self._q))
+        A_hat += self._eps * np.identity(self._q)
+        b_hat = np.zeros((self._q, self._p))
+
+        # perhaps can be done in one step?
+        psi = self._psi(s, a)
+        psi_next = self._psi(s_next, a_next)
+        psi_next[absorb.flatten(), :] = 0
         psi_delta = psi - self._gamma * psi_next
 
         # A_hat: q x q matrix
         A_hat = psi.T.dot(psi_delta)
         # b_hat: q x p matrix
         b_hat = psi.T.dot(self._phi(s, a))
-        A_hat += self._eps * np.identity(self._q)
+
+        rank = matrix_rank(A_hat)
+        if rank == self._p:
+            # use LU decomposition
+            # requires to be full rank
+            xi_hat = solve(A_hat, b_hat)
+        else:
+            logging.info("condition number of A_hat\n{}".format(cond(A_hat)))
+            logging.warning("A_hat is not full rank {} < {}".format(rank, self._p))
+            xi_hat = lstsq(A_hat, b_hat)[0]
+
         # xi_hat: q x p matrix
-        #xi_hat = inv(A_hat).dot(b_hat)
-        xi_hat = solve(A_hat, b_hat)
         self._xi_hat = xi_hat
         return xi_hat
 
