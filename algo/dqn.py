@@ -17,7 +17,17 @@ root_path = os.path.abspath(os.path.join(path, os.pardir))
 
 class DQN(object):
 
-    """Docstring for DQN. """
+    """Docstring for DQN.
+
+
+    TODO:
+        check the perf of the basic model
+        consider some additional architecture
+        https://github.com/vmayoral/basic_reinforcement_learning/blob/master/tutorial5/dqn-mountaincar.py
+        https://gist.github.com/avalcarce/93991f052ecbf19cfef99c76b8f0b470
+
+
+    """
 
     def __init__(self, env,
                        D=None,
