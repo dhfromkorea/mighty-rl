@@ -15,16 +15,20 @@ class Estimator():
     """
     Value Function approximator.
     """
-    def __init__(self, env, phi):
+    def __init__(self, env, phi, p):
         self._env = env
         self._phi = phi
+        self._p = p
 
         self.models = []
         # building a conditional model
         # @hack
         for _ in range(env.action_space.n):
             model = SGDRegressor(learning_rate="constant")
-            model.partial_fit(self._phi(env.reset(), 0), [0])
+            s0 = env.reset()
+            a0 = 0 #arbitrary
+            phi_sa = self._phi(s0, a0)[0, p*a0:p*(a0+1)]
+            model.partial_fit([phi_sa], [0])
             self.models.append(model)
 
 
@@ -32,12 +36,12 @@ class Estimator():
         if a is None:
             Q = []
             for m, a in zip(self.models, range(self._env.action_space.n)):
-                features = self._phi(s, a)
-                Q.append(m.predict(features)[0])
+                features = self._phi(s, a)[0, self._p*a:self._p*(a+1)]
+                Q.append(m.predict([features])[0])
             return np.array(Q)
         else:
-            features = self._phi(s, a)
-            return self.models[a].predict(features)[0]
+            features = self._phi(s, a)[0, self._p*a:self._p*(a+1)]
+            return self.models[a].predict([features])[0]
 
 
     def update(self, s, a, y):
@@ -45,8 +49,8 @@ class Estimator():
         Updates the estimator parameters for a given state and action towards
         the target y.
         """
-        features = self._phi(s, a)
-        self.models[a].partial_fit(features, [y])
+        features = self._phi(s, a)[0, self._p*a:self._p*(a+1)]
+        self.models[a].partial_fit([features], [y])
 
 
 # @todo: fix this
@@ -90,7 +94,7 @@ class EpsilonGreedyPolicy(object):
 class LinearQ3(object):
     """Docstring for LinearQ3. """
 
-    def __init__(self, env, phi, action_list, n_episode, epsilon, epsilon_decay, gamma):
+    def __init__(self, env, phi, p, action_list, n_episode, epsilon, epsilon_decay, gamma):
         """TODO: to be defined1.
 
         Parameters
@@ -107,7 +111,7 @@ class LinearQ3(object):
 
         """
         self._env = env
-        self._estimator = Estimator(env=env, phi=phi)
+        self._estimator = Estimator(env=env, phi=phi, p=p)
         self._n_episode = n_episode
         self._epsilon = epsilon
         self._epsilon_decay = epsilon_decay
