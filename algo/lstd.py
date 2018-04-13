@@ -167,9 +167,9 @@ class LSTDMu(LSTDQ):
         psi_next[absorb.flatten(), :] = 0
         psi_delta = psi - self._gamma * psi_next
 
-        # A_hat: (q*|A|) x (q*|A|) matrix
+        # A_hat: (q) x (q) matrix
         A_hat = psi.T.dot(psi_delta)
-        # b_hat: (q*|A|) x (p*|A|) matrix
+        # b_hat: (q) x (p) matrix
         b_hat = psi.T.dot(self._phi(s, a))
 
         rank = matrix_rank(A_hat)

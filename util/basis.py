@@ -70,12 +70,6 @@ class RBFKernel(object):
             featurized = self._phi.transform(x)
             return featurized
 
-        # giving s, a, b
-        #ones = np.ones((featurized.shape[0], 1))
-        #return np.hstack((featurized, ones))
-        #ones = np.ones((featurized.shape[0], 1))
-        #return np.hstack((featurized, ones))
-
 
 class RBFKernel2(object):
     """Docstring for RBFKernel. """
@@ -122,15 +116,20 @@ class RBFKernel2(object):
         """
         """
         def helper(s, a):
-            featurized = np.zeros(self._n_action * self._p, dtype=np.float)
-            featurized[self._p*a:self._p*(a+1)] = np.array(s)
+            featurized = np.zeros(self._p, dtype=np.float)
+
+            l = int(self._p*a/self._n_action)
+            r = int(self._p*(a+1)/self._n_action)
+            featurized[l:r] = np.array(s)
             return featurized
 
         def helper_batch(x):
             phi_s, a = x[:-1], x[-1]
             a = a.astype(np.int)
-            featurized = np.zeros(self._n_action * self._p, dtype=np.float)
-            featurized[self._p*a:self._p*(a+1)] = phi_s
+            featurized = np.zeros(self._p, dtype=np.float)
+            l = int(self._p*a/self._n_action)
+            r = int(self._p*(a+1)/self._n_action)
+            featurized[l:r] = phi_s
             return featurized
 
         if len(s.shape) == 1:
@@ -143,7 +142,7 @@ class RBFKernel2(object):
         else:
             phi_sa = np.apply_along_axis(helper_batch, 1, np.hstack((phi_s, a)))
 
-        assert phi_sa.shape == (s.shape[0], self._n_action * self._p)
+        assert phi_sa.shape == (s.shape[0], self._p)
         #print("phi_sa:{}".format(phi_sa[0, :, :]))
         return phi_sa
 
@@ -155,10 +154,6 @@ class RBFKernel2(object):
         featurized = self._phi.transform(x)
         return np.expand_dims(np.hstack((featurized[0], a)), axis=0)
 
-
-
-def get_rbf_basis(env, n_component=25, gammas=[1.0], include_action_to_basis=False, include_action=False):
-    return RBFKernel(env, n_component=n_component, gammas=gammas, include_action_to_basis=include_action_to_basis, include_action=include_action).transform
 
 
 def get_linear_basis(include_action=False):
@@ -175,37 +170,68 @@ def get_linear_basis(include_action=False):
     return f
 
 
+class LinearKernel2(object):
+    """Docstring for LinearBasis. """
 
-def get_linear_basis2(p, n_action, include_action=False):
-    """
-    assume action is discrete
+    def __init__(self, p, n_action, include_action=False):
+        """TODO: to be defined1.
 
-    Returns: n x (|A| x k) feature matrix
-    """
-    def helper(s, a):
-        featurized = np.zeros(n_action * p, dtype=np.float)
-        featurized[p*a:p*(a+1)] = np.array(s)
-        return featurized
-
-
-    def helper_batch(x):
-        phi_s, a = x[:-1], x[-1]
-        a = a.astype(np.int)
-        featurized = np.zeros(n_action * p, dtype=np.float)
-        featurized[p*a:p*(a+1)] = phi_s
-        return featurized
+        Parameters
+        ----------
+        p : TODO
+        n_action : TODO
+        include_action : TODO, optional
 
 
-    def f(s, a):
+        """
+        self._p = p
+        self._n_action = n_action
+        self._include_action = include_action
+
+    def transform(self, s, a):
+        """TODO: Docstring for transform.
+
+        assume action is discrete
+
+        Returns: n x (|A| x k) feature matrix
+
+        Parameters
+        ----------
+        s : TODO
+        a : TODO
+
+        Returns
+        -------
+        TODO
+
+        """
+
+
         if len(s.shape) == 1:
             s = np.expand_dims(s, axis=0)
 
         if s.shape[0] == 1:
-            phi_sa = np.expand_dims(helper(s, a), axis=0)
+            phi_sa = np.expand_dims(self._helper(s, a), axis=0)
         else:
-            phi_sa = np.apply_along_axis(helper_batch, 1, np.hstack((s, a)))
-        assert phi_sa.shape == (s.shape[0], n_action, p)
-        return phi
-    return f
+            phi_sa = np.apply_along_axis(self._helper_batch, 1, np.hstack((s, a)))
+        assert phi_sa.shape == (s.shape[0], self._p)
+        return phi_sa
+
+    def _helper(self, s, a):
+        featurized = np.zeros(self._p, dtype=np.float)
+        l = int(self._p*a/self._n_action)
+        r = int(self._p*(a+1)/self._n_action)
+        featurized[l:r] = np.array(s)
+        return featurized
+
+
+    def _helper_batch(self, x):
+        phi_s, a = x[:-1], x[-1]
+        a = a.astype(np.int)
+        featurized = np.zeros(self._p, dtype=np.float)
+        l = int(self._p*a/self._n_action)
+        r = int(self._p*(a+1)/self._n_action)
+        featurized[l:r] = phi_s
+        return featurized
 
 

@@ -19,15 +19,19 @@ class Estimator():
         self._env = env
         self._phi = phi
         self._p = p
+        self._n_action = env.action_space.n
 
         self.models = []
         # building a conditional model
         # @hack
-        for _ in range(env.action_space.n):
+        for _ in range(self._n_action):
             model = SGDRegressor(learning_rate="constant")
             s0 = env.reset()
             a0 = 0 #arbitrary
-            phi_sa = self._phi(s0, a0)[0, p*a0:p*(a0+1)]
+
+            l = int(self._p*a0/self._n_action)
+            r = int(self._p*(a0+1)/self._n_action)
+            phi_sa = self._phi(s0, a0)[0, l:r]
             model.partial_fit([phi_sa], [0])
             self.models.append(model)
 
@@ -36,11 +40,15 @@ class Estimator():
         if a is None:
             Q = []
             for m, a in zip(self.models, range(self._env.action_space.n)):
-                features = self._phi(s, a)[0, self._p*a:self._p*(a+1)]
+                l = int(self._p*a/self._n_action)
+                r = int(self._p*(a+1)/self._n_action)
+                features = self._phi(s, a)[0, l:r]
                 Q.append(m.predict([features])[0])
             return np.array(Q)
         else:
-            features = self._phi(s, a)[0, self._p*a:self._p*(a+1)]
+            l = int(self._p*a/self._n_action)
+            r = int(self._p*(a+1)/self._n_action)
+            features = self._phi(s, a)[0, l:r]
             return self.models[a].predict([features])[0]
 
 
@@ -49,7 +57,9 @@ class Estimator():
         Updates the estimator parameters for a given state and action towards
         the target y.
         """
-        features = self._phi(s, a)[0, self._p*a:self._p*(a+1)]
+        l = int(self._p*a/self._n_action)
+        r = int(self._p*(a+1)/self._n_action)
+        features = self._phi(s, a)[0, l:r]
         self.models[a].partial_fit([features], [y])
 
 
