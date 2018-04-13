@@ -236,7 +236,7 @@ class ApprenticeshipLearning(object):
 
 
     @staticmethod
-    def estimate_mu(env, pi_eval, mu_sample_size, phi, gamma, return_epi_len=False):
+    def estimate_mu(env, pi_eval, mu_sample_size, phi, gamma, return_epi_len=False, s_init=None):
         """TODO: Docstring for something.
 
         need to refit using a new policy to evaluate
@@ -260,7 +260,7 @@ class ApprenticeshipLearning(object):
 
         for epi_i in range(mu_sample_size):
             # initial state is not fixed
-            s = env.reset()
+            s = env.reset(s_init)
             mu = 0.0
             for t in itertools.count():
                 a = pi_eval.choose_action(s)
