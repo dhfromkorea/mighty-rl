@@ -187,12 +187,24 @@ def get_linear_basis2(p, n_action, include_action=False):
         featurized[p*a:p*(a+1)] = np.array(s)
         return featurized
 
+
+    def helper_batch(x):
+        phi_s, a = x[:-1], x[-1]
+        a = a.astype(np.int)
+        featurized = np.zeros(n_action * p, dtype=np.float)
+        featurized[p*a:p*(a+1)] = phi_s
+        return featurized
+
+
     def f(s, a):
         if len(s.shape) == 1:
             s = np.expand_dims(s, axis=0)
-        phi = np.apply_along_axis(helper, s, a)
-        import pdb;pdb.set_trace()
-        assert phi.shape == (s.shape[0], n_action, p)
+
+        if s.shape[0] == 1:
+            phi_sa = np.expand_dims(helper(s, a), axis=0)
+        else:
+            phi_sa = np.apply_along_axis(helper_batch, 1, np.hstack((s, a)))
+        assert phi_sa.shape == (s.shape[0], n_action, p)
         return phi
     return f
 
