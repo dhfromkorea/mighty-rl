@@ -74,7 +74,7 @@ class RBFKernel(object):
 class RBFKernel2(object):
     """Docstring for RBFKernel. """
 
-    def __init__(self, env, n_action, p, n_component=25, gammas=[1.0], include_action=False):
+    def __init__(self, states, n_action, p, components=[25], gammas=[1.0], include_action=False):
         """TODO: to be defined1.
 
         assume action is discrete
@@ -86,8 +86,6 @@ class RBFKernel2(object):
         env : TODO
         n_component : TODO, optional
         """
-        # todo from D
-        states = np.array([env.observation_space.sample() for x in range(10000)])
         # giving state action
         self._include_action = include_action
 
@@ -95,7 +93,7 @@ class RBFKernel2(object):
         scaler.fit(states)
         self._scaler = scaler
 
-        self._n_component = n_component
+        self._components = components
         self._gammas = gammas
         self._n_action = n_action
         self._p = p
@@ -104,8 +102,8 @@ class RBFKernel2(object):
 
     def fit(self, scaled):
         feature_list = []
-        for i, g in enumerate(self._gammas):
-            f = ("rbf{}".format(i), RBFSampler(gamma=g, n_components=self._n_component))
+        for i, (g, c) in enumerate(zip(self._gammas, self._components)):
+            f = ("rbf{}".format(i), RBFSampler(gamma=g, n_components=c))
             feature_list.append(f)
         phi = sklearn.pipeline.FeatureUnion(feature_list)
         phi.fit(scaled)
