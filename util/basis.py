@@ -209,15 +209,15 @@ class GaussianKernel(object):
         return self._phi
 
 
-    def _phi(state):
-        phi = np.apply_along_axis(self._gauss_kernel, 1, self._mus, state.flatten())
+    def _phi(self, s):
+        phi = np.apply_along_axis(self._gauss_kernel, 1, self._mus, s.flatten())
         # @todo: intercept? I don't think we need this? or do we?
         if self._add_bias:
             phi = np.append(phi, [1.])
         return phi
 
 
-    def _gauss_kernel(mu, s):
+    def _gauss_kernel(self, mu, s):
         if self._standardized:
             return np.exp(-np.lingalg.norm(s - mu, 2)**2/(2*self._sig**2))
         else:
