@@ -224,7 +224,7 @@ class GaussianKernel(object):
 
     def _gauss_kernel(self, mu_x, mu_y):
         if self._standardized:
-            return np.exp(-norm(s - np.array([mu_x, mu_y]), 2)**2/(2*self._sig**2))
+            return np.exp(-norm(self._s - np.array([mu_x, mu_y]), 2)**2/(2*self._sig**2))
         else:
             # @todo: this is hacky
             pos, speed = self._s
