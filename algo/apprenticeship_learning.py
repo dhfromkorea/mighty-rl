@@ -6,6 +6,7 @@ import logging
 import itertools
 import os
 from multiprocessing import Pool
+import time
 
 from algo.lstd import LSTDQ, LSTDMu, LSPI
 from algo.policy import LinearQ2
