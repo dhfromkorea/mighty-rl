@@ -235,8 +235,9 @@ class ApprenticeshipLearning(object):
         return pi_list[best_i]
 
 
-    @staticmethod
-    def estimate_mu(env, pi_eval, mu_sample_size, phi, gamma, return_epi_len=False, s_init=None):
+    @classmethod
+    def estimate_mu(cls, env, pi_eval, mu_sample_size, phi, gamma, return_epi_len=False, s_init=None,
+            n_job=1):
         """TODO: Docstring for something.
 
         need to refit using a new policy to evaluate
@@ -255,22 +256,30 @@ class ApprenticeshipLearning(object):
 
         """
         logging.info("estimating mu with {} samples".format(mu_sample_size))
-        mu_list = []
-        epi_length_list = []
 
-        for epi_i in range(mu_sample_size):
-            # initial state is not fixed
-            s = env.reset(s_init)
-            mu = 0.0
-            for t in itertools.count():
-                a = pi_eval.choose_action(s)
-                s_next, r, done, _ = env.step(a)
-                mu += gamma ** t * phi(s, a)
-                s = s_next
-                if done:
-                    break
-            epi_length_list.append(t)
-            mu_list.append(mu)
+        if n_job > 1:
+            # do this
+            raise Exception("not implemented")
+
+			#start_t = time.time()
+			n_threads = os.cpu_count() - 2
+			params = [np.copy(env), s_init, pi_eval, gamma, phi]
+			names = ['Brown', 'Wilson', 'Bartlett', 'Rivera', 'Molloy', 'Opie']
+			with multiprocessing.Pool(processes=3) as pool:
+				results = pool.starmap(merge_names, product(names, repeat=2))
+			print(results)
+			pool = Pool(n_threads)
+			res = pool.map(al.estimate_mu, zip(param_list))
+			mu_irl = np.mean(res, axis=1)
+
+        else:
+            # do that
+            mu_list = []
+            epi_length_list = []
+            for epi_i in range(mu_sample_size):
+                mu, t = cls.sample_mu(env, s_init, pi_eval, gamma, phi)
+                epi_length_list.append(t)
+                mu_list.append(mu)
 
         mu_hat = np.array(mu_list).mean(axis=0)
         if return_epi_len:
@@ -278,6 +287,31 @@ class ApprenticeshipLearning(object):
             return mu_hat, epi_length_avg
         else:
             return mu_hat
+
+    @staticmethod
+    def sample_mu(env, s_init, pi_eval, gamma, phi):
+        """TODO: Docstring for sample_mu.
+
+        Parameters
+        ----------
+        s_init : TODO
+
+        Returns
+        -------
+        TODO
+
+        """
+        # initial state is not fixed
+        s = env.reset(s_init)
+        mu = 0.0
+        for t in itertools.count():
+            a = pi_eval.choose_action(s)
+            s_next, r, done, _ = env.step(a)
+            mu += gamma ** t * phi(s, a)
+            s = s_next
+            if done:
+                break
+        return mu, t
 
 
     def _get_reward_fn(self, W):
