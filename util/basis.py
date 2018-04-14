@@ -191,13 +191,14 @@ class GaussianKernel(object):
 
     def fit(self, states):
         if self._standardized:
+            #raise Exception("Does not work yet.")
             x, y = states[:, 0], states[:, 1]
             c = 1.1
             a = np.linspace(c * x.min(), c * x.max(), self._n_component)
             b = np.linspace(c * y.min(), c * y.max(), self._n_component)
             self._mu_x, self._mu_y = np.meshgrid(a, b)
-            lamd = 0.5
-            self._sig = lamd * x.std() + (1-lamd) * y.std()
+            # since standardized
+            self._sig = 1.0
         else:
             # @todo: remove hard code for mountain car
             a = np.linspace(-1.2, 0.6, self._n_component)
