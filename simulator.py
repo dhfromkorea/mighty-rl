@@ -57,15 +57,16 @@ class Simulator(object):
                 for t in count():
                     a = pi.choose_action(s)
                     s_next, r, done, _ = env.step(a)
-                    logging.debug("s {} a {} s_next {} r {} done {}".format(s, a, r, s_next, done))
+                    #logging.debug("s {} a {} s_next {} r {} done {}".format(s, a, r, s_next, done))
 
                     transition = T(s=s, a=a, r=r, s_next=s_next, done=done)
                     traj.append(transition)
 
                     s = s_next
                     if done:
-                        logging.debug("done after {} steps".format(t))
+                        #logging.debug("done after {} steps".format(t))
                         break
+
 
                 D.append(traj)
         return D
