@@ -59,7 +59,6 @@ class Simulator(object):
                     s_next, r, done, _ = env.step(a)
                     logging.debug("s {} a {} s_next {} r {} done {}".format(s, a, r, s_next, done))
 
-                    a_next = pi.choose_action(s)
                     transition = T(s=s, a=a, r=r, s_next=s_next, done=done)
                     traj.append(transition)
 
