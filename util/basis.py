@@ -225,8 +225,7 @@ class GaussianKernel(object):
 
     def _gauss_kernel(self, mu_x, mu_y):
         if self._standardized:
-            s = self._scaler.transform([self._s])
-            return np.exp(-norm(s - np.array([mu_x, mu_y]), 2)**2/(2*self._sig**2))
+            return np.exp(-norm(self._s - np.array([mu_x, mu_y]), 2)**2/(2*self._sig**2))
         else:
             # @todo: this is hacky
             pos, speed = self._s
@@ -257,6 +256,9 @@ class GaussianKernel(object):
 
         if len(s.shape) == 1:
             s = np.expand_dims(s, axis=0)
+
+        if self._standardized:
+            s = self._scaler.transform(s)
 
         if s.shape[0] == 1:
             phi_sa = np.expand_dims(helper(s, a), axis=0)
