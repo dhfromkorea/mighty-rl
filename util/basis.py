@@ -226,7 +226,7 @@ class GaussianKernel(object):
             mu1, mu2 = mu
             a = np.power(pos-mu1,2)/self._sig_x
             b = np.power(pos-mu2,2)/self._sig_y
-            return np.exp(-a/self._sig_x - b/self._sig_y)
+            return np.exp(-a - b)
 
 
     def transform(self, s, a):
