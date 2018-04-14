@@ -148,7 +148,13 @@ class RBFKernel2(object):
 class GaussianKernel(object):
     """Docstring for RBFKernel. """
 
-    def __init__(self, states, n_action, p, n_component=7, include_action=False, add_bias=False):
+    def __init__(self, states,
+                       n_action,
+                       p,
+                       n_component,
+                       include_action=False,
+                       add_bias=False,
+                       standardized=False):
         """TODO: to be defined1.
 
         assume action is discrete
@@ -166,36 +172,61 @@ class GaussianKernel(object):
         self._add_bias = add_bias
         self._n_action = n_action
         self._p = p
-        self._phi = self.fit(states)
+
+
+        self._standardized = standardized
+
+        if standarized:
+            scaler = sklearn.preprocessing.StandardScaler()
+            scaler.fit(states)
+            self._scaler = scaler
+            self._phi = self.fit(scaler.transform(states))
+        else:
+            self._phi = self.fit(states)
 
 
     def fit(self, states):
-        # @todo: remove hard code for mountain car
-        a = np.linspace(-1.2, 0.6, self._n_component)
-        b = np.linspace(-0.07, 0.07, self._n_component)
-        mu_x, mu_y = np.meshgrid(a, b)
-        sig_x = 2*np.power((0.6+1.2)/10.,2)
-        sig_y = 2*np.power((0.07+0.07)/10.,2)
+        if self._standardized:
+            x, y = states[:, 0], states[:, 1]
+            c = 1.1
+            a = np.linspace(c * x.min(), c * x.max(), self._n_component)
+            b = np.linspace(c * y.min(), c * y.max(), self._n_component)
+            self._mu_x, self._mu_y = np.meshgrid(a, b)
+            lamda = 0.5
+            self._sig = lamd * x.std() + (1-lamd) * y.std()
+        else:
+            # @todo: remove hard code for mountain car
+            a = np.linspace(-1.2, 0.6, self._n_component)
+            b = np.linspace(-0.07, 0.07, self._n_component)
+            self._mu_x, self._mu_y = np.meshgrid(a, b)
+            self._sig_x = 2*np.power((0.6+1.2)/10.,2)
+            self._sig_y = 2*np.power((0.07+0.07)/10.,2)
 
-        def gauss_kernel(x, s):
-            # @todo: is this gauss kernel?
-            # sig_x and sig_y different
-            # because not standardized
-            pos, speed = s
-            mu1, mu2 = x
-            return np.exp(-np.power(pos-mu1,2)/sig_x -np.power(speed-mu2,2)/sig_y)
 
-        def phi(state):
+        mus = np.vstack(([mu_x.T], [mu_y.T])).T
+        self._mus = mus.reshape(self._n_component**2, 2)
 
-            mus = np.vstack(([mu_x.T], [mu_y.T])).T
-            mus = mus.reshape(self._n_component**2, 2)
-            phi = np.apply_along_axis(gauss_kernel, 1, mus, state.flatten())
-            # intercept? I don't think we need this? or do we?
-            if self._add_bias:
-                phi = np.append(phi, [1.])
+        return self._phi
 
-            return np.array(phi)
+
+    def _phi(state):
+        phi = np.apply_along_axis(self._gauss_kernel, 1, self._mus, state.flatten())
+        # @todo: intercept? I don't think we need this? or do we?
+        if self._add_bias:
+            phi = np.append(phi, [1.])
         return phi
+
+
+    def _gauss_kernel(mu, s):
+        if self._standardized:
+            return np.exp(-np.lingalg.norm(s - mu, 2)**2/(2*self._sig**2))
+        else:
+            # @todo: this is hacky
+            pos, speed = s
+            mu1, mu2 = mu
+            a = np.power(pos-mu1,2)/self._sig_x
+            b = np.power(pos-mu2,2)/self._sig_y
+            return np.exp(-a/self._sig_x - b/self._sig_y)
 
 
     def transform(self, s, a):
