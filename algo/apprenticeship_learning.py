@@ -274,10 +274,12 @@ class ApprenticeshipLearning(object):
             # do that
             mu_list = []
             epi_length_list = []
+            start_t = time.time()
             for epi_i in range(mu_sample_size):
                 mu, t = cls.sample_mu(env, s_init, pi_eval, gamma, phi)
                 epi_length_list.append(t)
                 mu_list.append(mu)
+            print("mu est took {:.2f} s".format(start_t - time.time()))
 
         mu_hat = np.array(mu_list).mean(axis=0)
         if return_epi_len:

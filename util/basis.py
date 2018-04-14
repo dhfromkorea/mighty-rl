@@ -176,7 +176,7 @@ class GaussianKernel(object):
 
         self._standardized = standardized
 
-        if standarized:
+        if self._standardized:
             scaler = sklearn.preprocessing.StandardScaler()
             scaler.fit(states)
             self._scaler = scaler
