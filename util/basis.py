@@ -1,4 +1,5 @@
 import numpy as np
+from numpy.linalg import norm
 import sklearn.pipeline
 from sklearn.kernel_approximation import RBFSampler
 import sklearn.preprocessing
@@ -138,6 +139,9 @@ class RBFKernel2(object):
         if s.shape[0] == 1:
             phi_sa = np.expand_dims(helper(phi_s, a), axis=0)
         else:
+            # @todo: hacky remove later
+            #if len(a.shape) == 1:
+                #a = np.vstack(a)
             phi_sa = np.apply_along_axis(helper_batch, 1, np.hstack((phi_s, a)))
 
         assert phi_sa.shape == (s.shape[0], self._p)
@@ -192,7 +196,7 @@ class GaussianKernel(object):
             a = np.linspace(c * x.min(), c * x.max(), self._n_component)
             b = np.linspace(c * y.min(), c * y.max(), self._n_component)
             self._mu_x, self._mu_y = np.meshgrid(a, b)
-            lamda = 0.5
+            lamd = 0.5
             self._sig = lamd * x.std() + (1-lamd) * y.std()
         else:
             # @todo: remove hard code for mountain car
@@ -210,22 +214,22 @@ class GaussianKernel(object):
 
 
     def _phi(self, s):
-        phi = np.apply_along_axis(self._gauss_kernel, 1, self._mus, s.flatten())
-        # @todo: intercept? I don't think we need this? or do we?
+        self._s = s.flatten()
+        gk_vec = np.vectorize(self._gauss_kernel)
+        phi = gk_vec(self._mu_x, self._mu_y)
         if self._add_bias:
+            # @todo: intercept? needed?
             phi = np.append(phi, [1.])
         return phi
 
-
-    def _gauss_kernel(self, mu, s):
+    def _gauss_kernel(self, mu_x, mu_y):
         if self._standardized:
-            return np.exp(-np.lingalg.norm(s - mu, 2)**2/(2*self._sig**2))
+            return np.exp(-norm(s - np.array([mu_x, mu_y]), 2)**2/(2*self._sig**2))
         else:
             # @todo: this is hacky
-            pos, speed = s
-            mu1, mu2 = mu
-            a = np.power(pos-mu1,2)/self._sig_x
-            b = np.power(pos-mu2,2)/self._sig_y
+            pos, speed = self._s
+            a = np.power(pos-mu_x,2)/self._sig_x
+            b = np.power(speed-mu_y,2)/self._sig_y
             return np.exp(-a - b)
 
 
@@ -255,6 +259,9 @@ class GaussianKernel(object):
         if s.shape[0] == 1:
             phi_sa = np.expand_dims(helper(s, a), axis=0)
         else:
+            # @todo: hacky remove later
+            if len(a.shape) == 1:
+                a = np.vstack(a)
             phi_sa = np.apply_along_axis(helper_batch, 1, np.hstack((s, a)))
 
         assert phi_sa.shape == (s.shape[0], self._p)
