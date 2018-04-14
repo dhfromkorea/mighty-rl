@@ -203,7 +203,7 @@ class GaussianKernel(object):
             self._sig_y = 2*np.power((0.07+0.07)/10.,2)
 
 
-        mus = np.vstack(([mu_x.T], [mu_y.T])).T
+        mus = np.vstack(([self._mu_x.T], [self._mu_y.T])).T
         self._mus = mus.reshape(self._n_component**2, 2)
 
         return self._phi
