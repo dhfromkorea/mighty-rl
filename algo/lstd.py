@@ -147,6 +147,7 @@ class LSTDMu(LSTDQ):
 
 
         """
+        logging.info("fitting D of size\n{}".format(D.shape)
         self._D = D
 
         s = np.vstack(self._D[:, 0])
@@ -161,7 +162,6 @@ class LSTDMu(LSTDQ):
         A_hat += self._eps * np.identity(self._q)
         b_hat = np.zeros((self._q, self._p))
 
-        # perhaps can be done in one step?
         psi = self._psi(s, a)
         psi_next = self._psi(s_next, a_next)
         psi_next[absorb.flatten(), :] = 0
