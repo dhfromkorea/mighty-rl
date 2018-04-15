@@ -45,7 +45,7 @@ class EpsilonGreedyPolicy:
 
     def choose_action(self, s):
         probs = self._query_Q_probs(s)
-        return np.random.choice(len(probs), p=probs)
+        return int(np.random.choice(len(probs), p=probs))
 
     def update_Q_val(self, s, a, val):
         self._Q[s,a] = val
@@ -80,7 +80,7 @@ class GreedyPolicy:
 
     def choose_action(self, s):
         ties = np.flatnonzero(self._Q[s, :] == self._Q[s, :].max())
-        return np.random.choice(ties)
+        return int(np.random.choice(ties))
 
     def get_opt_actions(self):
         opt_actions = np.zeros(self._Q.shape[0])
@@ -136,7 +136,7 @@ class StochasticPolicy:
 
     def choose_action(self, s, laplacian_smoothing=True):
         probs = self.query_Q_probs(s, laplacian_smoothing=laplacian_smoothing)
-        return np.random.choice(len(probs), p=probs)
+        return int(np.random.choice(len(probs), p=probs))
 
     def update_Q_val(self, s, a, val):
         self._Q[s,a] = val
@@ -153,7 +153,7 @@ class RandomPolicy:
 
     def choose_action(self, s):
         probs = self._Q_probs[s, :]
-        return np.random.choice(len(probs), p=probs)
+        return int(np.random.choice(len(probs), p=probs))
 
 
 class RandomPolicy2:
@@ -162,7 +162,7 @@ class RandomPolicy2:
 
     def choose_action(self, s):
         """ sample uniformly """
-        return np.random.choice(self._choices)
+        return int(np.random.choice(self._choices))
 
 
 import torch
