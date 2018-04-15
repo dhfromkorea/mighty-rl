@@ -139,7 +139,7 @@ def plot_trajectory_mountain_car(D, noshow=False):
 
     for episode in D:
         states = []
-        for (s, a, r, s_next, done) in episode:
+        for (s, a, r, s_next, absorb, done) in episode:
             states.append(s)
         states = np.array(states)
         sc = ax.scatter(states[:,0], states[:,1], c=range(len(states[:,0])), cmap=plt.get_cmap("YlOrRd"), s=7.0)

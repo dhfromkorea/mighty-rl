@@ -15,8 +15,9 @@ import os
 path = os.path.dirname(os.path.realpath(__file__))
 root_path = os.path.abspath(os.path.join(path, os.pardir))
 
-class DQN(object):
+import logging
 
+class DQN(object):
     """Docstring for DQN.
 
 
@@ -43,6 +44,7 @@ class DQN(object):
                        exploration_initial_eps=1.0,
                        exploration_final_eps=0.1,
                        target_network_update_freq=500,
+                       policy_evaluate_freq=5000,
                        param_noise=True,
                        grad_norm_clipping=10,
                        buffer_batch_size=32):
@@ -61,6 +63,18 @@ class DQN(object):
             self._model = model
         self._env = env
         self._D = D
+
+        # for batch
+        # Create the replay buffer
+        # PER?
+        logging.info("dumping D of size {} into experience replay".format(D.shape))
+        n_sample = D.shape[0]
+        self._replay_buffer = ReplayBuffer(n_sample)
+        for episode in D:
+            s, a, r, s_next, _, done = episode
+            self._replay_buffer.add(s, a, r, s_next, float(done))
+
+
         self._hiddens = hiddens
         self._lr = learning_rate
         self._gamma = gamma
@@ -75,6 +89,8 @@ class DQN(object):
         self._grad_norm_clipping = grad_norm_clipping
         self._buffer_batch_size = buffer_batch_size
         self._target_network_update_freq = target_network_update_freq
+        self._policy_evaluate_freq = policy_evaluate_freq
+
 
     def train(self, use_batch=False):
         """TODO: Docstring for train.
@@ -145,13 +161,16 @@ class DQN(object):
         TODO
 
         """
+
+        sess = tf.Session()
+        sess.__enter__()
+
         def make_obs_ph(name):
             return BatchInput(self._env.observation_space.shape, name=name)
 
-        model = deepq.models.mlp(self._hiddens, layer_norm=self._layer_norm)
         tools = deepq.build_train(
             make_obs_ph=make_obs_ph,
-            q_func=model,
+            q_func=self._model,
             num_actions=self._env.action_space.n,
             optimizer=tf.train.AdamOptimizer(learning_rate=self._lr),
             gamma=self._gamma,
@@ -159,21 +178,12 @@ class DQN(object):
         )
         act, train, update_target, debug = tools
 
-        # Create the replay buffer
-        # PER?
-        # n x 5 matrix
-        n_sample = self._D.shape[0]
-        replay_buffer = ReplayBuffer(n_sample)
-        for episode in D:
-            for (s, a, r, s_next, done) in episode:
-                replay_buffer.add(s, a, r, s_next, float(done))
 
-        # create exploration schedule
+        # dump everything to experience replay
+        # at the initialization of this class
 
-        timestep = int(self._exploration_fraction * self._max_timesteps),
-        exploration = LinearSchedule(schedule_timesteps=timestep,
-                                     initial_p=self._exploration_initial_eps,
-                                     final_p=self._exploration_final_eps)
+        # create exploration schedule (not needed for batch)
+        self._timestep = int(self._exploration_fraction * self._max_timesteps),
 
         # Initialize the parameters and copy them to the target network.
         U.initialize()
@@ -184,10 +194,55 @@ class DQN(object):
         #num_epochs = 100
         for t in itertools.count():
             # Minimize the error in Bellman's equation on a batch sampled from replay buffer.
-            s, a, r, s_next, dones = replay_buffer.sample(self._buffer_batch_size)
+            s, a, r, s_next, dones = self._replay_buffer.sample(self._buffer_batch_size)
             td_errors = train(s, a, r, s_next, dones, np.ones_like(r))
             if t % self._target_network_update_freq == 0:
+                logging.info("been trained {} steps".format(t))
                 update_target()
+            if t > 100 and t % self._policy_evaluate_freq == 0:
+                logging.info("evaluating the policy...")
+                self._evaluate_policy(act)
+
 
         self._policy = act
+        print("Saving model to mountaincar_model.pkl")
+        act.save("{}/data/mountaincar_model.pkl".format(root_path))
         return act
+
+
+    def _evaluate_policy(self, act, max_iter=3000):
+        """TODO: Docstring for evalute_policy.
+
+        Parameters
+        ----------
+        act : TODO
+
+        Returns
+        -------
+        TODO
+
+        """
+        episode_rewards = [0.0]
+        obs = self._env.reset()
+        for t in itertools.count():
+            if t > max_iter:
+                break
+            # Take action and update exploration to the newest value
+            #action = act(obs[None], update_eps=exploration.value(t))[0]
+            action = act(obs[None])[0]
+            new_obs, rew, done, _ = self._env.step(action)
+            obs = new_obs
+
+            episode_rewards[-1] += rew
+            if done:
+                obs = self._env.reset()
+                # needed?
+                episode_rewards.append(0)
+
+
+        logger.record_tabular("steps", t)
+        logger.record_tabular("episodes", len(episode_rewards))
+        logger.record_tabular("mean episode reward", round(np.mean(episode_rewards[-101:-1]), 1))
+        logger.record_tabular("% time spent exploring", int(100 * 0.0))
+        logger.dump_tabular()
+
