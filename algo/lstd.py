@@ -147,8 +147,8 @@ class LSTDMu(LSTDQ):
 
 
         """
-        logging.info("fitting D of size\n{}".format(D.shape)
         self._D = D
+        logging.info("fitting D of size\n{}".format(D.shape))
 
         s = np.vstack(self._D[:, 0])
         a = np.vstack(self._D[:, 1])
