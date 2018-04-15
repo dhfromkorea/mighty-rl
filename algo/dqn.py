@@ -31,6 +31,7 @@ class DQN(object):
 
     def __init__(self, env,
                        D=None,
+                       model=None,
                        hiddens=[64],
                        learning_rate=1e-3,
                        gamma=0.99,
@@ -54,6 +55,10 @@ class DQN(object):
 
 
         """
+        if model is None:
+            self._model = deepq.models.mlp(self._hiddens, layer_norm=self._layer_norm)
+        else:
+            self._model = model
         self._env = env
         self._D = D
         self._hiddens = hiddens
@@ -105,7 +110,6 @@ class DQN(object):
         """
         # Enabling layer_norm here is import for parameter space noise!
         # consider changing this
-        self._model = deepq.models.mlp(self._hiddens, layer_norm=self._layer_norm)
         act = deepq.learn(
                         self._env,
                         q_func=self._model,
