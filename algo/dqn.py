@@ -37,7 +37,9 @@ class DQN(object):
                        buffer_size=50000,
                        max_timesteps=10**6,
                        print_freq=10,
+                       layer_norm=True,
                        exploration_fraction=0.1,
+                       exploration_initial_eps=1.0,
                        exploration_final_eps=0.1,
                        param_noise=True,
                        grad_norm_clipping=10,
@@ -60,13 +62,13 @@ class DQN(object):
         self._max_timesteps = max_timesteps
         self._print_freq = print_freq
         self._exploration_fraction = exploration_fraction
+        self._exploration_initial_eps = exploration_initial_eps
         self._exploration_final_eps = exploration_final_eps
         self._param_noise = param_noise
         self._layer_norm = layer_norm
         self._grad_norm_clipping = grad_norm_clipping
         self._buffer_batch_size = buffer_batch_size
-
-
+        self._target_update_interval = 500
 
     def train(self, use_batch=False):
         """TODO: Docstring for train.
@@ -86,7 +88,7 @@ class DQN(object):
             return self._train_online()
 
 
-    def _train_online(self)
+    def _train_online(self):
         """TODO: Docstring for _train_online.
 
         Parameters
@@ -102,18 +104,19 @@ class DQN(object):
         """
         # Enabling layer_norm here is import for parameter space noise!
         # consider changing this
-        self._model = deepq.models.mlp(hiddens, layer_norm=self._layer_norm)
+        self._model = deepq.models.mlp(self._hiddens, layer_norm=self._layer_norm)
         act = deepq.learn(
                         self._env,
                         q_func=self._model,
                         lr=self._lr,
                         gamma=self._gamma,
-                        max_timesteps=self.max_timesteps,
+                        max_timesteps=self._max_timesteps,
                         buffer_size=self._buffer_size,
                         exploration_fraction=self._exploration_fraction,
                         exploration_final_eps=self._exploration_final_eps,
                         print_freq=self._print_freq,
-                        param_noise=self._param_noise
+                        param_noise=self._param_noise,
+                        target_network_update_freq=self._target_network_update_freq
                     )
         print("Saving model to mountaincar_model.pkl")
         act.save("{}/data/mountaincar_model.pkl".format(root_path))
@@ -137,7 +140,6 @@ class DQN(object):
         TODO
 
         """
-        target_update_interval = 500
         def make_obs_ph(name):
             return BatchInput(self._env.observation_space.shape, name=name)
 
@@ -157,13 +159,15 @@ class DQN(object):
         # n x 5 matrix
         n_sample = self._D.shape[0]
         replay_buffer = ReplayBuffer(n_sample)
-		for episode in D:
-			for (s, a, r, s_next, done) in episode:
+        for episode in D:
+            for (s, a, r, s_next, done) in episode:
                 replay_buffer.add(s, a, r, s_next, float(done))
 
         # create exploration schedule
-        exploration = LinearSchedule(schedule_timesteps=2000,
-                                     initial_p=self._exploration_fraction,
+
+        timestep = int(self._exploration_fraction * self._max_timesteps),
+        exploration = LinearSchedule(schedule_timesteps=timestep,
+                                     initial_p=self._exploration_initial_eps,
                                      final_p=self._exploration_final_eps)
 
         # Initialize the parameters and copy them to the target network.
@@ -174,10 +178,10 @@ class DQN(object):
 
         #num_epochs = 100
         for t in itertools.count():
-			# Minimize the error in Bellman's equation on a batch sampled from replay buffer.
-			s, a, r, s_next, dones = replay_buffer.sample(self._buffer_batch_size)
-			td_errors = train(s, a, r, s_next, dones, np.ones_like(r))
-            if t % target_update_interval == 0:
+            # Minimize the error in Bellman's equation on a batch sampled from replay buffer.
+            s, a, r, s_next, dones = replay_buffer.sample(self._buffer_batch_size)
+            td_errors = train(s, a, r, s_next, dones, np.ones_like(r))
+            if t % self._target_update_interval == 0:
                 update_target()
 
         self._policy = act
