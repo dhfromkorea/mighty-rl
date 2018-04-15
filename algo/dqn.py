@@ -56,7 +56,7 @@ class DQN(object):
 
         """
         if model is None:
-            self._model = deepq.models.mlp(self._hiddens, layer_norm=self._layer_norm)
+            self._model = deepq.models.mlp(hiddens, layer_norm=layer_norm)
         else:
             self._model = model
         self._env = env
