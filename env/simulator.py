@@ -6,7 +6,7 @@ import logging
 
 from util import plotting
 
-T = namedtuple("Transition", ["s", "a", "r", "s_next", "absorb"])
+T = namedtuple("Transition", ["s", "a", "r", "s_next", "absorb", "done"])
 
 
 class Simulator(object):
@@ -79,7 +79,7 @@ class Simulator(object):
                     logging.debug("s {} a {} s_next {} r {} absorb {}".format(s, a, r, s_next,
                         absorb))
 
-                    transition = T(s=s, a=a, r=r, s_next=s_next, absorb=absorb)
+                    transition = T(s=s, a=a, r=r, s_next=s_next, absorb=absorb, done=done)
                     traj.append(transition)
 
                     if done:
@@ -133,7 +133,7 @@ class Simulator(object):
 
         """
 
-        D_ = np.empty((0, 5))
+        D_ = np.empty((0, 6))
         for traj in D:
             D_ = np.vstack((D_, np.array(traj)))
         return D_
