@@ -41,6 +41,7 @@ class DQN(object):
                        exploration_fraction=0.1,
                        exploration_initial_eps=1.0,
                        exploration_final_eps=0.1,
+                       target_network_update_freq=500,
                        param_noise=True,
                        grad_norm_clipping=10,
                        buffer_batch_size=32):
@@ -68,7 +69,7 @@ class DQN(object):
         self._layer_norm = layer_norm
         self._grad_norm_clipping = grad_norm_clipping
         self._buffer_batch_size = buffer_batch_size
-        self._target_update_interval = 500
+        self._target_network_update_freq = target_network_update_freq
 
     def train(self, use_batch=False):
         """TODO: Docstring for train.
@@ -181,7 +182,7 @@ class DQN(object):
             # Minimize the error in Bellman's equation on a batch sampled from replay buffer.
             s, a, r, s_next, dones = replay_buffer.sample(self._buffer_batch_size)
             td_errors = train(s, a, r, s_next, dones, np.ones_like(r))
-            if t % self._target_update_interval == 0:
+            if t % self._target_network_update_freq == 0:
                 update_target()
 
         self._policy = act
